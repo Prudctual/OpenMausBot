@@ -25514,26 +25514,43 @@ const gracefulShutdown = createGracefulShutdown({
     () => flushUsageLedger(DATA_DIR),
     () => flushDecisionLog(DATA_DIR),
     () => flushAdminActivity(DATA_DIR),
+    () => bus.flush(),
     () => closeMessageSearch(),
   ],
   // Cleanup jobs run concurrently. Release only after they settle (or reach
   // the shutdown deadline), immediately before the process exits, so no new
   // server can overlap with a still-mutating old one.
   exit: (code) => {
-    // Streamed text the bus is still merging reaches the log and clients.
-    bus.flush();
-    try { sessions.close(); }
-    catch {
-      // An uncleared marker makes saved account sessions require sign-in on
-      // the next boot; never label failed persistence a clean shutdown.
-      console.error("Session persistence failed during shutdown; account sign-in will be required again.");
-      code = 1;
-    }
-    closeMessageDb();
-    mcpOAuth.dispose();
-    releaseDataDirLeaseAtExit();
-    // Every launcher in this repo starts the server again on this code (server/restart.ts).
-    process.exit(restartRequested && code === 0 ? RESTART_EXIT_CODE : code);
+    let finished = false;
+    const finish = (exitCode: number) => {
+      if (finished) return;
+      finished = true;
+      try { sessions.close(); }
+      catch {
+        // An uncleared marker makes saved account sessions require sign-in on
+        // the next boot; never label failed persistence a clean shutdown.
+        console.error("Session persistence failed during shutdown; account sign-in will be required again.");
+        exitCode = 1;
+      }
+      closeMessageDb();
+      mcpOAuth.dispose();
+      releaseDataDirLeaseAtExit();
+      // Every launcher in this repo starts the server again on this code (server/restart.ts).
+      process.exit(restartRequested && exitCode === 0 ? RESTART_EXIT_CODE : exitCode);
+    };
+    // Streamed text still merging, and any canonical lines queued after the
+    // cleanup flush, reach disk before exit. A stuck append cannot hold the
+    // process: the cleanup deadline already elapsed, so this wait is short.
+    const timer = setTimeout(() => finish(code), 1_000);
+    timer.unref?.();
+    void bus.flush().then(() => {
+      clearTimeout(timer);
+      finish(code);
+    }, (error: unknown) => {
+      console.error("bus: canonical event log flush failed", error);
+      clearTimeout(timer);
+      finish(code);
+    });
   },
 });
 
