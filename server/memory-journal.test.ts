@@ -11,6 +11,7 @@ import {
   BEFORE_CAP,
   DIFF_CAP,
   JOURNAL_DIR,
+  advanceMemoryBaseline,
   beginMemoryTurn,
   endMemoryTurn,
   flushMemoryJournal,
@@ -24,7 +25,7 @@ import {
   unifiedDiff,
 } from "./memory-journal.ts";
 import { MEMORY_INDEX, hashMemoryText, readMemoryDoc } from "./memory-store.ts";
-import { WORKSPACES_DIR, ensureWorkspace, workspaceDir } from "./workspace.ts";
+import { WORKSPACES_DIR, appendMemoryLog, ensureWorkspace, workspaceDir } from "./workspace.ts";
 
 let counter = 0;
 const freshBot = () => `journal-bot-${process.pid}-${counter++}`;
@@ -300,6 +301,64 @@ describe("turn boundary", () => {
     writeFileSync(join(workspaceDir(b), "MEMORY.md"), "b learned\n");
     const rows = endMemoryTurn("room-1");
     expect(rows.map((r) => r.botId).sort()).toEqual([a, b].sort());
+  });
+
+  it("does not journal a harness daily-log line as a change made outside the app", async () => {
+    const bot = freshBot();
+    ensureWorkspace(bot);
+    const earlier = new Date(2026, 8, 10, 9, 0);
+    const seeded = appendMemoryLog(bot, "earlier note", { now: earlier });
+    expect(seeded.ok).toBe(true);
+    if (!seeded.ok) return;
+    // the file is already in the baseline, the way today's log is after the first turn
+    beginMemoryTurn(bot, "t1");
+    expect(endMemoryTurn("t1")).toEqual([]);
+    const written = appendMemoryLog(bot, "finished the invoices", {
+      now: new Date(2026, 8, 10, 9, 5),
+      source: 'chat "Follow-up"',
+    });
+    expect(written.ok).toBe(true);
+    if (!written.ok) return;
+    expect(written.before).toBe(seeded.after);
+    advanceMemoryBaseline(bot, written.file, written.before, written.after);
+    beginMemoryTurn(bot, "t2");
+    expect(endMemoryTurn("t2")).toEqual([]);
+    await flushMemoryJournal(bot);
+    expect(readMemoryJournal(bot, 10)).toEqual([]);
+  });
+
+  it("leaves a log the baseline no longer matches, so a real edit is not hidden", async () => {
+    const bot = freshBot();
+    ensureWorkspace(bot);
+    const now = new Date(2026, 8, 10, 9, 0);
+    appendMemoryLog(bot, "earlier note", { now });
+    beginMemoryTurn(bot, "t1");
+    endMemoryTurn("t1");
+    writeFileSync(join(workspaceDir(bot), "memory", "log", "2026-09-10.md"), "hand edit\n");
+    const written = appendMemoryLog(bot, "harness line", { now: new Date(2026, 8, 10, 9, 5) });
+    expect(written.ok).toBe(true);
+    if (!written.ok) return;
+    advanceMemoryBaseline(bot, written.file, written.before, written.after);
+    beginMemoryTurn(bot, "t2");
+    endMemoryTurn("t2");
+    await flushMemoryJournal(bot);
+    expect(readMemoryJournal(bot, 10).map((row) => [row.path, row.actor, row.via])).toEqual([
+      ["memory/log/2026-09-10.md", "person", "disk"],
+    ]);
+  });
+
+  it("still journals a log line written during the turn as the bot's", async () => {
+    const bot = freshBot();
+    ensureWorkspace(bot);
+    beginMemoryTurn(bot, "t1");
+    const written = appendMemoryLog(bot, "the tool noted it", { now: new Date(2026, 8, 10, 11, 0) });
+    expect(written.ok).toBe(true);
+    const rows = endMemoryTurn("t1");
+    expect(rows.map((row) => [row.path, row.kind, row.actor, row.via])).toEqual([
+      ["memory/log/2026-09-10.md", "created", "bot", "turn"],
+    ]);
+    await flushMemoryJournal(bot);
+    expect(readMemoryJournal(bot, 10)).toHaveLength(1);
   });
 
   it("never throws when a workspace vanished mid-turn", () => {
