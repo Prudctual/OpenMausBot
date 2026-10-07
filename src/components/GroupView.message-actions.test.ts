@@ -88,7 +88,7 @@ describe("room message boundary", () => {
   it("keeps the rest of the transcript when one row throws", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     flushSync(() => root.render(createElement("div", null,
-      createElement(MessageBoundary, { fallbackText: "plain words" }, createElement(Boom)),
+      createElement(MessageBoundary, { fallbackText: "plain words", children: createElement(Boom) }),
       createElement("p", null, "still here"),
     )));
     expect(host.textContent).toContain("plain words");
