@@ -696,7 +696,7 @@ const Bubble = memo(function Bubble({
         )}
         <span
           className={cn(
-            "self-end pb-1 text-[11px] tabular-nums text-ink-tertiary opacity-0 transition-opacity group-hover:opacity-100",
+            "self-end pb-1 text-[11px] tabular-nums text-ink-tertiary opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
             user ? "order-first mr-2" : "ml-2",
           )}
         >
@@ -1204,12 +1204,31 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
 
   // one message at a time may be in edit mode
   const [editingId, setEditingId] = useState<string | null>(null);
+  // The editor unmounts after cancel or submit and the browser then parks
+  // focus on the document. Ask for the composer once that unmount has
+  // committed. A thread switch clears the editor without this flag.
+  const returnFocus = useRef(false);
   useEffect(() => setEditingId(null), [bot.id, bot.threadId]);
+  useEffect(() => {
+    if (editingId !== null || !returnFocus.current) return;
+    // After paint, and again after StrictMode's extra effect pass: the
+    // cancelled frame is the probe, the one that runs moves the caret.
+    const frame = requestAnimationFrame(() => {
+      if (!returnFocus.current) return;
+      returnFocus.current = false;
+      composerDockRef.current?.querySelector("textarea")?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editingId]);
   // stable handler identities — MessagesList is memo'd on them
   const startEdit = useCallback((id: string) => setEditingId(id), []);
-  const cancelEdit = useCallback(() => setEditingId(null), []);
+  const cancelEdit = useCallback(() => {
+    returnFocus.current = true;
+    setEditingId(null);
+  }, []);
   const submitEdit = useCallback(
     (messageId: string, text: string) => {
+      returnFocus.current = true;
       setEditingId(null); // closes the editor first — a double Enter can't fork twice
       dispatch({ type: "editMessage", botId: bot.id, threadId: bot.threadId, messageId, text });
     },
@@ -1577,7 +1596,14 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
       {/* Reading scrollback — one tap back to the end, streaming or not */}
       {!following && (
         <button
-          onClick={jumpToLatest}
+          onClick={() => {
+            jumpToLatest();
+            // The pill unmounts as soon as following turns on, which drops
+            // focus to the document. Move it to the composer after that.
+            requestAnimationFrame(() => {
+              composerDockRef.current?.querySelector("textarea")?.focus();
+            });
+          }}
           aria-label={t("chat.jumpToLatestAria")}
           className="animate-pop-in absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-hairline/40 bg-raised px-3 py-1.5 text-[12.5px] text-ink shadow-lg hover:bg-raised-hover"
           style={{ bottom: composerDock.height }}

@@ -383,7 +383,7 @@ export const Transcript = memo(function Transcript({
                     <PinToggle group={group} message={m} />
                   </>
                 )}
-                <span className="self-end pb-1 text-[11px] tabular-nums text-ink-tertiary opacity-0 transition-opacity group-hover:opacity-100">
+                <span className="self-end pb-1 text-[11px] tabular-nums text-ink-tertiary opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                   {formatTime(m.at)}
                 </span>
               </div>
@@ -1440,7 +1440,14 @@ export function GroupView({ group }: { group: Group }) {
 
       {!following && (
         <button
-          onClick={jumpToLatest}
+          onClick={() => {
+            jumpToLatest();
+            // The pill unmounts as soon as following turns on, which drops
+            // focus to the document. Move it to the composer after that.
+            requestAnimationFrame(() => {
+              composerDockRef.current?.querySelector("textarea")?.focus();
+            });
+          }}
           aria-label={t("chat.jumpToLatestAria")}
           className="animate-pop-in absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-hairline/40 bg-raised px-3 py-1.5 text-[12.5px] text-ink shadow-lg hover:bg-raised-hover"
           style={{ bottom: composerDock.height }}
