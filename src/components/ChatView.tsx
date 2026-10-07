@@ -268,7 +268,7 @@ export function ErrorRow({
         ) : isProviderSafetyBlock(message) ? (
           <p className="mt-2 text-[12.5px] leading-relaxed text-ink-secondary">
             {PROVIDER_SAFETY_GUIDANCE}{" "}
-            <a href={PROVIDER_SAFETY_HELP_URL} target="_blank" rel="noreferrer" className="underline">About provider safety checks</a>
+            <a href={PROVIDER_SAFETY_HELP_URL} target="_blank" rel="noreferrer" className="underline">{t("chat.providerSafetyAbout")}</a>
           </p>
         ) : setupInstance &&
         !(setupInstance.snapshot.state === "available" && setupInstance.snapshot.authenticated !== false) ? (
@@ -1391,7 +1391,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               {bot.busy && <WorkingDots className="text-ink-secondary" />}
             </button>
           )}
-          {!bot.busy && bot.waitingForTeammates && <span className="truncate text-[12px] text-ink-secondary" role="status">Teammates working</span>}
+          {!bot.busy && bot.waitingForTeammates && <span className="truncate text-[12px] text-ink-secondary" role="status">{t("chat.teammatesWorking")}</span>}
         </div>
         <div
           data-chathead-controls
@@ -1744,7 +1744,7 @@ function ChatHeaderMenu({ bot, messages, findOpen, onFind }: {
     } satisfies SidebarMenuItem] : []),
     ...(remoteClient ? [] : [{
       key: "activity",
-      label: "Activity",
+      label: t("activity.title"),
       icon: <ListChecks size={16} />,
       active: state.activityOpen,
       separatorBefore: !usage,

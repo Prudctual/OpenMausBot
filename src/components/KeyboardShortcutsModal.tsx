@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Keyboard, Search, X } from "lucide-react";
 
+import { t } from "@/lib/i18n";
 import {
   filterShortcutGroups,
   isMacPlatform,
@@ -25,7 +26,7 @@ function ShortcutRow({ item, isMac }: { item: ShortcutItem; isMac: boolean }) {
 
   return (
     <div className="flex items-center justify-between gap-4 py-1.5">
-      <span className="text-[13px] text-ink">{item.description}</span>
+      <span className="text-[13px] text-ink">{t(item.description)}</span>
       <div className="flex shrink-0 items-center gap-1">
         {keys.map((key, index) => (
           <kbd

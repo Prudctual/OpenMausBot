@@ -8,7 +8,7 @@ import type { ModelPicker } from "./ModelPicker";
 const fixture = vi.hoisted(() => {
   vi.stubGlobal("window", {});
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
-  return { showThreads: true, advanced: true, menus: [] as { ariaLabel: string; items: { key: string; disabled?: boolean; heading?: string; active?: boolean }[] }[], dispatch: vi.fn(), canWrite: null as boolean | null, showToolCalls: false, platform: "other", localReasonCode: "cua-driver-unavailable", localMessage: "", model: null as ComponentProps<typeof ModelPicker> | null,
+  return { showThreads: true, advanced: true, menus: [] as { ariaLabel: string; items: { key: string; label?: string; disabled?: boolean; heading?: string; active?: boolean }[] }[], dispatch: vi.fn(), canWrite: null as boolean | null, showToolCalls: false, platform: "other", localReasonCode: "cua-driver-unavailable", localMessage: "", model: null as ComponentProps<typeof ModelPicker> | null,
     approval: null as ComponentProps<typeof ApprovalModeSelector> | null };
 });
 vi.mock("@/state/store", async (importOriginal) => {
@@ -187,9 +187,20 @@ describe("thread control placement", () => {
     delete window.ogb;
   });
 
+  it("says when teammates are working and labels the activity menu", () => {
+    fixture.menus = [];
+    const markup = renderToStaticMarkup(createElement(ChatView, {
+      bot: { ...bot, busy: false, tasks: [{ ...bot.tasks![0]!, busy: false, waitingForTeammates: true }] },
+    }));
+    expect(markup).toContain("Teammates working");
+    const more = fixture.menus.find((menu) => menu.ariaLabel === "More")!;
+    expect(more.items.find((item) => item.key === "activity")?.label).toBe("Activity");
+  });
+
   it("explains provider safety errors without offering an ineffective Retry", () => {
     const markup = renderToStaticMarkup(createElement(ErrorRow, { message: "Blocked by our safety systems", onRetry: () => {} }));
     expect(markup).toContain("Full access controls tool approvals, not provider safety checks");
+    expect(markup).toContain("About provider safety checks");
     expect(markup).not.toContain("<button");
     expect(renderToStaticMarkup(createElement(ErrorRow, { message: "Network timeout", onRetry: () => {} }))).toContain("<button");
   });
