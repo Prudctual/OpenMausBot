@@ -2,7 +2,7 @@
 // carry the personality; avatars inside the room stay still so a busy group
 // does not become a wall of competing motion. Plain messages go to the room's
 // default responder; @mentions override that routing.
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { activeLocale, t } from "@/lib/i18n";
 import { ArrowDown, Check, ChevronDown, ChevronRight, Folder, FolderOpen, Loader2, MessageSquareReply, Pin, PinOff, Plus, Search, X } from "lucide-react";
 import {
@@ -10,9 +10,12 @@ import {
   useStore,
   formatTime,
   openNotificationTarget,
+  type Action,
+  type AppState,
   type Bot,
   type Group,
   type GroupDefaultResponder,
+  type InstanceInfo,
   type Message,
 } from "@/state/store";
 import { BotAvatar } from "./Avatar";
@@ -72,6 +75,62 @@ import { pendingApprovals } from "./PendingApproval";
 import { TranscriptAnnouncer } from "./TranscriptAnnouncer";
 import { dayLabel, localDay } from "@/lib/transcript-derivations";
 
+/** What a room row reads besides its own message. Same idea as ChatRows in
+ * ChatView: the value changes only when one of these does, so a memoized
+ * row skips a store event that is not its own. */
+type RoomRows = {
+  dispatch: (action: Action) => void;
+  showToolCalls: boolean;
+  focusedId: string | null;
+  bots: readonly Bot[];
+  instances: InstanceInfo[];
+  /** Click-time reads (open a linked room, a routine). The ref identity stays put. */
+  stateRef: { readonly current: AppState };
+};
+
+const RoomRowsContext = createContext<RoomRows | null>(null);
+
+function useRoomRows(): RoomRows {
+  const rows = useContext(RoomRowsContext);
+  if (!rows) throw new Error("a room row outside GroupView");
+  return rows;
+}
+
+const NO_BOTS: readonly Bot[] = [];
+const NO_INSTANCES: InstanceInfo[] = [];
+
+/** The room-row slice. Built once per store event and reused while the drawn fields hold still. */
+export function useRoomRowsValue(threadId: string): RoomRows {
+  const { state, dispatch } = useStore();
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const bots = useDrawnRoster(state.bots ?? NO_BOTS);
+  const instances = state.instances ?? NO_INSTANCES;
+  const showToolCalls = showToolCallsEnabled(state.config);
+  const focus = state.focusMessage;
+  const focusedId = focus && !focus.consumed && focus.threadId === threadId ? focus.messageId : null;
+  return useMemo(
+    () => ({ dispatch, showToolCalls, focusedId, bots, instances, stateRef }),
+    [dispatch, showToolCalls, focusedId, bots, instances, stateRef],
+  );
+}
+
+export function ProvideRoomRows({ threadId, children }: { threadId: string; children: ReactNode }) {
+  const value = useRoomRowsValue(threadId);
+  return <RoomRowsContext.Provider value={value}>{children}</RoomRowsContext.Provider>;
+}
+
+/** Fields a room row draws for a bot. A busy flag or an unread dot is not one of them. */
+const drawnBot = (bot: Bot) =>
+  [bot.id, bot.name, bot.hidden, bot.color, bot.mascotBody, bot.mascotExpression, bot.avatarUrl, bot.avatarCrop, bot.avatarZoom, bot.avatarFocusX, bot.avatarFocusY, bot.modelSelection?.instanceId ?? ""].join("\u0001");
+
+function useDrawnRoster(bots: readonly Bot[]): readonly Bot[] {
+  const signature = bots.map(drawnBot).join("\u0002");
+  const cache = useRef({ signature, bots });
+  if (cache.current.signature !== signature) cache.current = { signature, bots };
+  return cache.current.bots;
+}
+
 /** One finished tool step in a room. Same pill the 1:1 chat uses, minus the
  * status glyph — a room reads as a conversation, not a build log. A chip
  * that links somewhere ("Posted in #Standup", a bot⇄bot exchange) opens it,
@@ -81,24 +140,37 @@ import { dayLabel, localDay } from "@/lib/transcript-derivations";
  * visible pill. A member's failed turn is not a step at all: it is the row a
  * 1:1 chat shows for the same failure, sign-in card and all, for the engine
  * that member ran on. */
-export function RoomToolChip({ message, roomId }: { message: Message; roomId?: string }) {
-  const { state, dispatch } = useStore();
+const RoomToolChipView = memo(function RoomToolChipView({
+  message,
+  roomId,
+  bots,
+  instances,
+  dispatch,
+  stateRef,
+}: {
+  message: Message;
+  roomId?: string;
+  bots: readonly Bot[];
+  instances: InstanceInfo[];
+  dispatch: (action: Action) => void;
+  stateRef: { readonly current: AppState };
+}) {
   const tool = message.tool;
   if (!tool) return null;
   if (message.threadRef) return <ThreadChip message={message} />;
   if (failedTurnCause(tool.name) !== null) {
-    return <FailedTurnRow tool={tool} engine={botEngine(state.bots.find((b) => b.id === message.from?.botId), state.instances)} botId={message.from?.botId} />;
+    return <FailedTurnRow tool={tool} engine={botEngine(bots.find((b) => b.id === message.from?.botId), instances)} botId={message.from?.botId} />;
   }
   const comm = message.comm;
   if (comm && comm.groupId !== roomId) {
-    const withBot = state.bots.find((b) => b.id === comm.withBotId);
+    const withBot = bots.find((b) => b.id === comm.withBotId);
     return (
       <div className="flex justify-start">
         <button
           type="button"
           onClick={() => {
             dispatch({ type: "select", id: comm.groupId });
-            const destination = state.groups.find(g => g.id === comm.groupId);
+            const destination = stateRef.current.groups.find(g => g.id === comm.groupId);
             if (comm.threadId && destination?.tasks?.some(task => task.threadId === comm.threadId)) {
               dispatch({ type: "switchGroupTask", groupId: comm.groupId, threadId: comm.threadId });
             }
@@ -122,10 +194,26 @@ export function RoomToolChip({ message, roomId }: { message: Message; roomId?: s
           tool.ok === false ? "text-danger" : "text-ink-secondary",
         )}
       >
-        {comm && <BotAvatar bot={state.bots.find(b => b.id === comm.withBotId) ?? { name: comm.withName, color: comm.withColor }} state="happy" size={16} animated={false} />}
+        {comm && <BotAvatar bot={bots.find(b => b.id === comm.withBotId) ?? { name: comm.withName, color: comm.withColor }} state="happy" size={16} animated={false} />}
         <span className={cn("max-w-[480px] truncate", !comm && "font-mono")}>{tool.name}</span>
       </div>
     </div>
+  );
+});
+
+export function RoomToolChip({ message, roomId }: { message: Message; roomId?: string }) {
+  const { state, dispatch } = useStore();
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  return (
+    <RoomToolChipView
+      message={message}
+      roomId={roomId}
+      bots={state.bots}
+      instances={state.instances}
+      dispatch={dispatch}
+      stateRef={stateRef}
+    />
   );
 }
 
@@ -147,17 +235,25 @@ function ClusterLabel({ bot, name, color }: { bot?: Bot; name: string; color: st
 }
 
 /** Pin toggle for one room message — one pin per room, patchGroup path. */
-function PinToggle({ group, message }: { group: Group; message: Message }) {
-  const { dispatch } = useStore();
+function PinToggle({
+  groupId,
+  messageId,
+  pinned,
+  dispatch,
+}: {
+  groupId: string;
+  messageId: string;
+  pinned: boolean;
+  dispatch: (action: Action) => void;
+}) {
   if (window.ogb?.remoteClient?.active) return null;
-  const pinned = group.pinnedMessageId === message.id;
   return (
     <button
       onClick={() =>
         dispatch({
           type: "patchGroup",
-          groupId: group.id,
-          patch: { pinnedMessageId: pinned ? "" : message.id },
+          groupId,
+          patch: { pinnedMessageId: pinned ? "" : messageId },
         })
       }
       aria-label={pinned ? t("chat.unpinMessage") : t("chat.pinMessage")}
@@ -168,6 +264,137 @@ function PinToggle({ group, message }: { group: Group; message: Message }) {
     </button>
   );
 }
+
+/** One room text message. Memoized on the message and the fields it draws,
+ * the way a 1:1 Bubble is, so a store event elsewhere does not redraw it. */
+const RoomTextRow = memo(function RoomTextRow({
+  groupId,
+  threadId,
+  dm,
+  message: m,
+  members,
+  replyTarget,
+  emerging,
+  eager,
+  pinned,
+  onReply,
+}: {
+  groupId: string;
+  threadId: string;
+  dm?: boolean;
+  message: Message;
+  members: readonly Bot[];
+  replyTarget?: Message;
+  emerging: boolean;
+  eager: boolean;
+  pinned: boolean;
+  onReply: (message: Message) => void;
+}) {
+  const { dispatch, stateRef } = useRoomRows();
+  const user = m.role === "user";
+  const cited = user && m.text ? splitTranscriptCitations(m.text) : null;
+  const attachments = user && m.text ? splitTranscriptAttachments(cited?.display ?? m.text) : null;
+  return (
+    <div className={cn("group flex w-full flex-col", user ? "items-end" : "items-start")}>
+      <div className={cn("flex w-full items-end gap-1.5", user ? "justify-end" : "justify-start")}>
+        {user && (
+          <>
+            <button
+              type="button"
+              onClick={() => onReply(m)}
+              aria-label={t("chat.replyToMessage")}
+              title={t("chat.reply")}
+              className="rounded-md p-1.5 text-ink-secondary opacity-0 transition-opacity hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-70"
+            >
+              <MessageSquareReply size={14} />
+            </button>
+            <PinToggle groupId={groupId} messageId={m.id} pinned={pinned} dispatch={dispatch} />
+          </>
+        )}
+        <div
+          data-chat-bubble
+          className={cn(
+            "w-fit max-w-[min(42rem,78%)] rounded-2xl text-[15px] leading-relaxed",
+            !user && emerging && "turn-answer",
+            // A bot message that is only attachments is just the files: no bubble.
+            !user && !m.text?.trim() && !m.replyToId && m.attachments?.length
+              ? "text-ink"
+              : user ? "chat-text whitespace-pre-wrap bg-bubble-user px-4 py-2.5 text-ink" : "bg-card px-4 py-2.5 text-ink",
+          )}
+          title={new Date(m.at).toLocaleString()}
+        >
+          {replyTarget && (
+            <div className="mb-2">
+              <ReplyQuote
+                message={replyTarget}
+                fallbackName={t("room.fallbackBot")}
+                compact
+                onJump={() =>
+                  dispatch({ type: "focusMessage", threadId, messageId: replyTarget.id })
+                }
+              />
+            </div>
+          )}
+          {user ? (
+            <>
+              {attachments && <AttachmentGallery images={attachments.images} files={attachments.files} message={{ threadId, messageId: m.id }} eager={eager} className={!attachments.display ? "mb-0" : undefined} />}
+              <div
+                data-citation-source={m.id}
+                data-citation-owner-type="group"
+                data-citation-owner={groupId}
+                data-citation-thread={threadId}
+              >
+                <ThreadRefText text={attachments?.display ?? m.text ?? ""} peers={members} everyone={!dm} />
+              </div>
+              {cited && <SentCitations
+                citations={cited.citations}
+                onNavigate={async (citation: CitationAttachment) => {
+                  const live = stateRef.current.groups.find((candidate) => candidate.id === groupId);
+                  if (citation.source.ownerType !== "group" || !live?.messages.some((candidate) => candidate.id === citation.source.messageId)) return false;
+                  dispatch({ type: "focusMessage", threadId, messageId: citation.source.messageId });
+                  return highlightCitationSource(citation);
+                }}
+              />}
+              {m.via === "api" && (
+                <div className="mt-1 text-[11px] text-ink-secondary">Sent through the API, not typed here</div>
+              )}
+            </>
+          ) : (
+            <>
+              {(m.attachments ?? []).some((attachment) => attachment.kind === "audio") && (
+                <div className={cn("flex flex-col", (m.text || (m.attachments ?? []).some((attachment) => attachment.kind === "image")) && "mb-2")}>
+                  {m.attachments!.filter((attachment): attachment is VoiceNoteAttachment => attachment.kind === "audio").map((note) => (
+                    <VoiceNoteBubble key={note.path} attachment={note} />
+                  ))}
+                </div>
+              )}
+              <MessageAttachmentGallery text={m.text ?? ""} attachments={m.attachments} message={{ threadId, messageId: m.id }} className={m.text ? undefined : "mb-0"} eager={eager} />
+              {m.text ? <div data-citation-source={m.id} data-citation-owner-type="group" data-citation-owner={groupId} data-citation-thread={threadId}><ChatMarkdown text={m.text} mentionPeers={members} everyone={!dm} message={{ threadId, messageId: m.id }} /></div> : null}
+            </>
+          )}
+        </div>
+        {!user && (
+          <>
+            <button
+              type="button"
+              onClick={() => onReply(m)}
+              aria-label={t("chat.replyToMessage")}
+              title={t("chat.reply")}
+              className="rounded-md p-1.5 text-ink-secondary opacity-0 transition-opacity hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-70"
+            >
+              <MessageSquareReply size={14} />
+            </button>
+            <PinToggle groupId={groupId} messageId={m.id} pinned={pinned} dispatch={dispatch} />
+          </>
+        )}
+        <span className="self-end pb-1 text-[11px] tabular-nums text-ink-tertiary opacity-0 transition-opacity group-hover:opacity-100">
+          {formatTime(m.at)}
+        </span>
+      </div>
+      {!user && m.routedBy && <RoutedByLine routedBy={m.routedBy} />}
+    </div>
+  );
+});
 
 export const Transcript = memo(function Transcript({
   group,
@@ -188,8 +415,7 @@ export const Transcript = memo(function Transcript({
   emergingId?: string | null;
   onReply: (message: Message) => void;
 }) {
-  const { state, dispatch } = useStore();
-  const showToolCalls = showToolCallsEnabled(state.config);
+  const { dispatch, showToolCalls, focusedId, bots, instances, stateRef } = useRoomRows();
   const memberOf = (id?: string) => members.find((b) => b.id === id);
   // Several bots working at once turn a room into a wall of chips; fold the
   // finished ones the same way a 1:1 chat does.
@@ -197,8 +423,6 @@ export const Transcript = memo(function Transcript({
     message.kind !== "activity" || roomActivityVisible(message, showToolCalls))), [messages, showToolCalls]);
   const newestMessageId = messages.at(-1)?.id;
   const newestUserMessageId = [...messages].reverse().find((message) => message.role === "user")?.id;
-  const focus = state.focusMessage;
-  const focusedId = focus && !focus.consumed && focus.threadId === group.threadId ? focus.messageId : null;
   return (
     <>
       {items.map((item, i) => {
@@ -222,7 +446,7 @@ export const Transcript = memo(function Transcript({
               <ActivityRun messages={item.messages} forceOpen={item.messages.some((step) => step.id === focusedId)}>
                 {item.messages.map((step) => (
                   <div key={step.id} className="contents" data-mid={step.id}>
-                    <RoomToolChip message={step} />
+                    <RoomToolChipView message={step} bots={bots} instances={instances} dispatch={dispatch} stateRef={stateRef} />
                   </div>
                 ))}
               </ActivityRun>
@@ -231,8 +455,6 @@ export const Transcript = memo(function Transcript({
         }
         const m = item.message;
         const user = m.role === "user";
-        const cited = user && m.text ? splitTranscriptCitations(m.text) : null;
-        const attachments = user && m.text ? splitTranscriptAttachments(cited?.display ?? m.text) : null;
         const newCluster = !prev || prev.role !== m.role || prev.from?.botId !== m.from?.botId || Boolean(prev.comm) || newDay;
         const routineOwner = m.kind === "routine.run" ? memberOf(m.from?.botId) : undefined;
         const routineExecutionThreadId = m.routineRun?.executionThreadId;
@@ -274,13 +496,13 @@ export const Transcript = memo(function Transcript({
               <RoutineRunCard
                 message={m}
                 onOpen={routineTarget
-                  ? () => openNotificationTarget(dispatch, routineTarget, state)
+                  ? () => openNotificationTarget(dispatch, routineTarget, stateRef.current)
                   : undefined}
               />
             </div>
           ) : m.kind === "activity" && m.tool ? (
             roomActivityVisible(m, showToolCalls) ? (
-              isStatusActivity(m) ? <StatusActivityRow message={m} /> : <RoomToolChip message={m} roomId={group.id} />
+              isStatusActivity(m) ? <StatusActivityRow message={m} /> : <RoomToolChipView message={m} roomId={group.id} bots={bots} instances={instances} dispatch={dispatch} stateRef={stateRef} />
             ) : null
           ) : m.kind === "screen" ? (
             <ScreenFrame threadId={group.threadId} message={m} />
@@ -289,106 +511,18 @@ export const Transcript = memo(function Transcript({
           ) : m.kind === "digest" ? (
             showToolCalls ? <DigestChip message={m} /> : null
           ) : m.kind === "text" && (m.text || m.attachments?.length) ? (
-            <div className={cn("group flex w-full flex-col", user ? "items-end" : "items-start")}>
-              <div className={cn("flex w-full items-end gap-1.5", user ? "justify-end" : "justify-start")}>
-                {user && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => onReply(m)}
-                      aria-label={t("chat.replyToMessage")}
-                      title={t("chat.reply")}
-                      className="rounded-md p-1.5 text-ink-secondary opacity-0 transition-opacity hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-70"
-                    >
-                      <MessageSquareReply size={14} />
-                    </button>
-                    <PinToggle group={group} message={m} />
-                  </>
-                )}
-                <div
-                  data-chat-bubble
-                  className={cn(
-                    "w-fit max-w-[min(42rem,78%)] rounded-2xl text-[15px] leading-relaxed",
-                    !user && m.id === emergingId && "turn-answer",
-                    // A bot message that is only attachments is just the files: no bubble.
-                    !user && !m.text?.trim() && !m.replyToId && m.attachments?.length
-                      ? "text-ink"
-                      : user ? "chat-text whitespace-pre-wrap bg-bubble-user px-4 py-2.5 text-ink" : "bg-card px-4 py-2.5 text-ink",
-                  )}
-                  title={new Date(m.at).toLocaleString()}
-                >
-                  {m.replyToId && (() => {
-                    const target = transcript.find((candidate) => candidate.id === m.replyToId);
-                    return target ? (
-                      <div className="mb-2">
-                        <ReplyQuote
-                          message={target}
-                          fallbackName={t("room.fallbackBot")}
-                          compact
-                          onJump={() =>
-                            dispatch({ type: "focusMessage", threadId: group.threadId, messageId: target.id })
-                          }
-                        />
-                      </div>
-                    ) : null;
-                  })()}
-                  {user ? (
-                    <>
-                      {attachments && <AttachmentGallery images={attachments.images} files={attachments.files} message={{ threadId: group.threadId, messageId: m.id }} eager={m.id === newestMessageId || m.id === newestUserMessageId} className={!attachments.display ? "mb-0" : undefined} />}
-                      <div
-                        data-citation-source={m.id}
-                        data-citation-owner-type="group"
-                        data-citation-owner={group.id}
-                        data-citation-thread={group.threadId}
-                      >
-                        <ThreadRefText text={attachments?.display ?? m.text ?? ""} peers={members} everyone={!group.dm} />
-                      </div>
-                      {cited && <SentCitations
-                        citations={cited.citations}
-                        onNavigate={async (citation: CitationAttachment) => {
-                          if (citation.source.ownerType !== "group" || !group.messages.some((candidate) => candidate.id === citation.source.messageId)) return false;
-                          dispatch({ type: "focusMessage", threadId: group.threadId, messageId: citation.source.messageId });
-                          return highlightCitationSource(citation);
-                        }}
-                      />}
-                      {m.via === "api" && (
-                        <div className="mt-1 text-[11px] text-ink-secondary">Sent through the API, not typed here</div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {(m.attachments ?? []).some((attachment) => attachment.kind === "audio") && (
-                        <div className={cn("flex flex-col", (m.text || (m.attachments ?? []).some((attachment) => attachment.kind === "image")) && "mb-2")}>
-                          {m.attachments!.filter((attachment): attachment is VoiceNoteAttachment => attachment.kind === "audio").map((note) => (
-                            <VoiceNoteBubble key={note.path} attachment={note} />
-                          ))}
-                        </div>
-                      )}
-                      <MessageAttachmentGallery text={m.text ?? ""} attachments={m.attachments} message={{ threadId: group.threadId, messageId: m.id }} className={m.text ? undefined : "mb-0"} eager={m.id === newestMessageId || m.id === newestUserMessageId} />
-                      {m.text ? <div data-citation-source={m.id} data-citation-owner-type="group" data-citation-owner={group.id} data-citation-thread={group.threadId}><ChatMarkdown text={m.text} mentionPeers={members} everyone={!group.dm} message={{ threadId: group.threadId, messageId: m.id }} /></div> : null}
-                    </>
-                  )}
-                </div>
-                {!user && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => onReply(m)}
-                      aria-label={t("chat.replyToMessage")}
-                      title={t("chat.reply")}
-                      className="rounded-md p-1.5 text-ink-secondary opacity-0 transition-opacity hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-70"
-                    >
-                      <MessageSquareReply size={14} />
-                    </button>
-                    <PinToggle group={group} message={m} />
-                  </>
-                )}
-                <span className="self-end pb-1 text-[11px] tabular-nums text-ink-tertiary opacity-0 transition-opacity group-hover:opacity-100">
-                  {formatTime(m.at)}
-                </span>
-              </div>
-              {!user && m.routedBy && <RoutedByLine routedBy={m.routedBy} />}
-            </div>
+            <RoomTextRow
+              groupId={group.id}
+              threadId={group.threadId}
+              dm={group.dm}
+              message={m}
+              members={members}
+              replyTarget={m.replyToId ? transcript.find((candidate) => candidate.id === m.replyToId) : undefined}
+              emerging={m.id === emergingId}
+              eager={m.id === newestMessageId || m.id === newestUserMessageId}
+              pinned={group.pinnedMessageId === m.id}
+              onReply={onReply}
+            />
           ) : null;
         if (!row) return null;
         return (
@@ -981,6 +1115,7 @@ function RoomSetup({ group, members }: { group: Group; members: Bot[] }) {
 }
 export function GroupView({ group }: { group: Group }) {
   const { state, dispatch } = useStore();
+  const roomRows = useRoomRowsValue(group.threadId);
   const remoteClient = window.ogb?.remoteClient?.active === true;
   // Same Windows caption handling as ChatView: drag on the header, shift the
   // right-hand controls below the renderer-drawn caption buttons.
@@ -1012,8 +1147,8 @@ export function GroupView({ group }: { group: Group }) {
   }, []);
 
   const members = useMemo(
-    () => group.memberIds.map((id) => state.bots.find((b) => b.id === id)).filter((b): b is Bot => Boolean(b)),
-    [group.memberIds, state.bots],
+    () => group.memberIds.map((id) => roomRows.bots.find((b) => b.id === id)).filter((b): b is Bot => Boolean(b)),
+    [group.memberIds, roomRows.bots],
   );
   const speaker = members.find((b) => b.id === group.busyBotId);
   const setupPending = !remoteClient && roomNeedsSetup(group);
@@ -1148,6 +1283,7 @@ export function GroupView({ group }: { group: Group }) {
   });
 
   return (
+    <RoomRowsContext.Provider value={roomRows}>
     <main className="relative flex h-full min-w-0 flex-1 flex-col bg-app">
       <GroupCallOverlay group={group} members={members} />
       {membersOpen && !remoteClient && !group.dm && (
@@ -1468,5 +1604,6 @@ export function GroupView({ group }: { group: Group }) {
       </div>
       </GlassScrollFrame>
     </main>
+    </RoomRowsContext.Provider>
   );
 }
