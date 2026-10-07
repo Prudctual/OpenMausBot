@@ -29,6 +29,7 @@ import { botAvatarUrlFromStoredPath } from "../shared/bot-avatar.ts";
 import { BOT_PROFILE_LIMITS } from "../shared/bot-profile.ts";
 import { CLOUD_COMPUTER_BUSY_ERROR } from "../shared/computer-contention.ts";
 import { failedTurnTool } from "../shared/failed-turn.ts";
+import { STOPPED_TURN_NAME, assistantTranscript, errorTranscript } from "../shared/client-cancel.ts";
 import { phonePairingLink } from "../shared/pairing-link.ts";
 import { canWorkOnCloud, type CloudEngine } from "../shared/cloud-computer.ts";
 import {
@@ -7592,10 +7593,26 @@ bus.subscribe((event: RuntimeEvent) => {
     return message;
   };
 
-  if (coordinatorVisibleText) {
-    pushMessage({ role: "bot", kind: "text", text: coordinatorVisibleText, turnId: completedTurnId });
-    lastReply.set(event.threadId, coordinatorVisibleText);
-  }
+  // A client abort sometimes arrives as assistant text or as runtime.error.
+  // That is a stop, not a failure: store one stopped row and leave lastReply
+  // alone, so a finished notification does not read the provider's sentence.
+  // One turn can emit both; the second copy is the same stop.
+  const pushStoppedTurn = (turnId: string | undefined) => {
+    const last = store.messagesFor(event.threadId).at(-1);
+    if (last?.kind === "activity" && last.tool?.name === STOPPED_TURN_NAME && last.turnId === turnId) return;
+    pushMessage({ role: "bot", kind: "activity", tool: { name: STOPPED_TURN_NAME, ok: true }, turnId });
+  };
+  const pushAssistantText = (text: string, turnId: string | undefined) => {
+    const spoken = assistantTranscript(text);
+    if (spoken.kind === "stopped") {
+      pushStoppedTurn(turnId);
+      return;
+    }
+    pushMessage({ role: "bot", kind: "text", text: spoken.text, turnId });
+    lastReply.set(event.threadId, spoken.text);
+  };
+
+  if (coordinatorVisibleText) pushAssistantText(coordinatorVisibleText, completedTurnId);
   if (bot) handoffs.onEvent(event);
 
   if (event.turnId) liveTurnByThread.set(event.threadId, event.turnId);
@@ -7615,11 +7632,9 @@ bus.subscribe((event: RuntimeEvent) => {
       break;
     case "item.completed":
       if (event.itemType === "assistant_text") {
-        const text = event.text;
-        pushMessage({ role: "bot", kind: "text", text, turnId: event.turnId });
         // kept so "finished" can say what it finished with, rather than
-        // just that something ended
-        lastReply.set(event.threadId, text);
+        // just that something ended. A client abort stores no reply text.
+        pushAssistantText(event.text, event.turnId);
       } else if (event.itemType === "assistant_image") {
         try {
           const decoded = decodeGeneratedImage(event.data);
@@ -7907,6 +7922,10 @@ bus.subscribe((event: RuntimeEvent) => {
       pushMessage({ role: "bot", kind: "activity", tool: { name: `notice: ${event.message.slice(0, 240)}`, ok: true } });
       break;
     case "runtime.error":
+      if (errorTranscript(event.message).kind === "stopped") {
+        pushStoppedTurn(event.turnId);
+        break;
+      }
       pushMessage({
         role: "bot",
         kind: "activity",

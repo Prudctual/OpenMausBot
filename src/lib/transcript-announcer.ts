@@ -4,6 +4,7 @@
 // short sentence: a reply that has finished, and an approval that is waiting.
 import { t } from "@/lib/i18n";
 import type { Message } from "@/state/store";
+import { isCancelledTranscriptRow } from "../../shared/client-cancel";
 
 export interface TranscriptSnapshot {
   /** A turn is running (for a room: any member is working). */
@@ -56,7 +57,7 @@ export function latestReply(
 ): TranscriptSnapshot["reply"] {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]!;
-    if (message.role === "bot" && message.kind === "text" && message.text?.trim()) {
+    if (message.role === "bot" && message.kind === "text" && message.text?.trim() && !isCancelledTranscriptRow(message)) {
       return { id: message.id, name: nameOf(message), text: message.text };
     }
   }
