@@ -14,6 +14,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { LONG_RETRY_MESSAGE, QUOTA_EXHAUSTED_MESSAGE } from "../../shared/provider-limits.ts";
 import { DATA_DIR, ensureDirs, instanceConfigs, NATIVE_DIR } from "../config.ts";
 import type { ProviderInstance } from "../contracts.ts";
 import { recordEvents, type EventRecorder } from "../testing/events.ts";
@@ -514,6 +515,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     delete process.env.FAKE_CLAUDE_PARTIAL_FAILS;
     delete process.env.FAKE_CLAUDE_STATE;
     delete process.env.FAKE_CLAUDE_RETRY_SCALE;
+    delete process.env.FAKE_CLAUDE_FAIL_TEXT;
     delete process.env.FAKE_CLAUDE_TEXT_HANG;
     delete process.env.FAKE_CLAUDE_STEER_GRACE_SCALE;
     delete process.env.FAKE_CLAUDE_STEER_SILENCE_SCALE;
@@ -2856,6 +2858,41 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(recorder.events.filter((e) => e.type === "turn.completed" && e.turnId === second.turnId))
       .toMatchObject([{ ok: true }]);
   });
+
+  it("waits a Retry-After from claude stderr and stops when that wait is too long", async () => {
+    process.env.FAKE_CLAUDE_TRANSIENTS = "1";
+    process.env.FAKE_CLAUDE_STATE = join(scratch, "retry-after");
+    process.env.FAKE_CLAUDE_RETRY_SCALE = "0.001";
+    process.env.FAKE_CLAUDE_FAIL_TEXT = "claude: 503 service unavailable Retry-After: 5";
+    await create();
+    await instance.adapter.sendTurn({ threadId: "t-retry-after", text: "go" });
+    await recorder.until((e) => e.type === "turn.completed" && e.ok === true);
+    expect(recorder.events.filter((e) => e.type === "turn.retrying")).toEqual([
+      expect.objectContaining({ attempt: 1, delayMs: 5_000, reason: "server_error" }),
+    ]);
+
+    process.env.FAKE_CLAUDE_TRANSIENTS = "9";
+    process.env.FAKE_CLAUDE_STATE = join(scratch, "retry-after-long");
+    process.env.FAKE_CLAUDE_FAIL_TEXT = "claude: 503 service unavailable Retry-After: 120";
+    await instance.adapter.sendTurn({ threadId: "t-retry-after-long", text: "go" });
+    await recorder.until((e) => e.threadId === "t-retry-after-long" && e.type === "turn.completed" && e.ok === false);
+    expect(recorder.events.some((e) => e.threadId === "t-retry-after-long" && e.type === "turn.retrying")).toBe(false);
+    expect(recorder.events.find((e) => e.threadId === "t-retry-after-long" && e.type === "runtime.error")).toMatchObject({
+      message: LONG_RETRY_MESSAGE,
+    });
+  }, 20_000);
+
+  it("stops on an exhausted credit line from claude instead of retrying it", async () => {
+    process.env.FAKE_CLAUDE_TRANSIENTS = "9";
+    process.env.FAKE_CLAUDE_STATE = join(scratch, "credits");
+    process.env.FAKE_CLAUDE_RETRY_SCALE = "0.001";
+    process.env.FAKE_CLAUDE_FAIL_TEXT = "insufficient credits";
+    await create();
+    await instance.adapter.sendTurn({ threadId: "t-credits", text: "go" });
+    await recorder.until((e) => e.type === "turn.completed" && e.ok === false);
+    expect(recorder.events.some((e) => e.type === "turn.retrying")).toBe(false);
+    expect(recorder.events.find((e) => e.type === "runtime.error")).toMatchObject({ message: QUOTA_EXHAUSTED_MESSAGE });
+  }, 20_000);
 
   it("stops retrying at the attempt cap and settles the turn as failed", async () => {
     process.env.FAKE_CLAUDE_TRANSIENTS = "9";

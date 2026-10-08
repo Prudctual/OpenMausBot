@@ -285,6 +285,8 @@
   "chat.retry": "Reintentar",
   "chat.error.signedOut": "{name} todavía no tiene la sesión iniciada. Inicia sesión abajo y luego vuelve a enviar tu mensaje.",
   "chat.error.details": "Detalles",
+  "chat.error.longRetry": "El proveedor pidió una espera de más de 30 segundos, así que este turno se detuvo. Suele ser un límite diario o de facturación. Espera a que se restablezca o elige otro modelo.",
+  "chat.error.quotaExhausted": "Esta cuenta no tiene créditos o agotó su cuota. Espera a que se restablezca o elige otro modelo.",
   "chat.send": "Enviar",
   "chat.editMessage": "Editar el mensaje",
   "chat.reply": "Responder",

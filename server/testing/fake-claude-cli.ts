@@ -605,7 +605,7 @@ const playTurn = (prompt: JsonValue, late = false) => {
       if (process.env.FAKE_CLAUDE_PARTIAL_FAILS) {
         out({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "half an answer" } } });
       }
-      process.stderr.write("claude: API error (503): service temporarily unavailable\n");
+      process.stderr.write(`${process.env.FAKE_CLAUDE_FAIL_TEXT ?? "claude: API error (503): service temporarily unavailable"}\n`);
       process.exit(5);
     }
   }

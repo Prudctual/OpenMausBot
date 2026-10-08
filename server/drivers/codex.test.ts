@@ -15,6 +15,7 @@ import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { LONG_RETRY_MESSAGE, QUOTA_EXHAUSTED_MESSAGE } from "../../shared/provider-limits.ts";
 import type { ProviderInstance, RuntimeEvent } from "../contracts.ts";
 import { DATA_DIR, NATIVE_DIR } from "../config.ts";
 import { ChatGptPlanAuthController } from "./chatgpt-plan-auth.ts";
@@ -361,6 +362,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     delete process.env.FAKE_CODEX_PARTIAL_FAILS;
     delete process.env.FAKE_CODEX_STATE;
     delete process.env.FAKE_CODEX_RETRY_SCALE;
+    delete process.env.FAKE_CODEX_FAIL_TEXT;
     delete process.env.FAKE_CODEX_LAUNCH_CRASHES;
     delete process.env.FAKE_CODEX_LAUNCH_KILLS;
     delete process.env.FAKE_CODEX_LAUNCH_SILENT;
@@ -2905,6 +2907,41 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     // exactly one settled reply across all three app-server launches
     const replies = recorder.events.filter((e) => e.type === "item.completed" && e.itemType === "assistant_text");
     expect(replies).toHaveLength(1);
+  }, 20_000);
+
+  it("waits a Retry-After on a codex turn error and stops when that wait is too long", async () => {
+    process.env.FAKE_CODEX_TRANSIENTS = "1";
+    process.env.FAKE_CODEX_STATE = join(scratch, "codex-retry-after");
+    process.env.FAKE_CODEX_RETRY_SCALE = "0.001";
+    process.env.FAKE_CODEX_FAIL_TEXT = "provider returned 503 Retry-After: 5";
+    await create();
+    await instance.adapter.sendTurn({ threadId: "t-codex-retry-after", text: "hi" });
+    await recorder.until((e) => e.type === "turn.completed" && e.ok === true);
+    expect(recorder.events.filter((e) => e.type === "turn.retrying")).toEqual([
+      expect.objectContaining({ attempt: 1, delayMs: 5_000, reason: "server_error" }),
+    ]);
+
+    process.env.FAKE_CODEX_TRANSIENTS = "9";
+    process.env.FAKE_CODEX_STATE = join(scratch, "codex-retry-after-long");
+    process.env.FAKE_CODEX_FAIL_TEXT = "provider returned 429 Retry-After: 120";
+    await instance.adapter.sendTurn({ threadId: "t-codex-retry-after-long", text: "hi" });
+    await recorder.until((e) => e.threadId === "t-codex-retry-after-long" && e.type === "turn.completed" && e.ok === false);
+    expect(recorder.events.some((e) => e.threadId === "t-codex-retry-after-long" && e.type === "turn.retrying")).toBe(false);
+    expect(recorder.events.find((e) => e.threadId === "t-codex-retry-after-long" && e.type === "runtime.error")).toMatchObject({
+      message: LONG_RETRY_MESSAGE,
+    });
+  }, 20_000);
+
+  it("stops on an exhausted credit line from codex instead of retrying it", async () => {
+    process.env.FAKE_CODEX_TRANSIENTS = "9";
+    process.env.FAKE_CODEX_STATE = join(scratch, "codex-credits");
+    process.env.FAKE_CODEX_RETRY_SCALE = "0.001";
+    process.env.FAKE_CODEX_FAIL_TEXT = "insufficient credits";
+    await create();
+    await instance.adapter.sendTurn({ threadId: "t-codex-credits", text: "hi" });
+    await recorder.until((e) => e.type === "turn.completed" && e.ok === false);
+    expect(recorder.events.some((e) => e.type === "turn.retrying")).toBe(false);
+    expect(recorder.events.find((e) => e.type === "runtime.error")).toMatchObject({ message: QUOTA_EXHAUSTED_MESSAGE });
   }, 20_000);
 
   it("does not repeat an accepted instruction update when turn/start retries", async () => {

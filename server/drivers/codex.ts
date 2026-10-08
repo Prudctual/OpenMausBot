@@ -40,7 +40,7 @@ import { newEventId, newId } from "../contracts.ts";
 import { decodeCodexSelection, OFFICIAL_CODEX_PROVIDER, readCodexModelCatalog, STATIC_CODEX_MODELS } from "./codex-catalog.ts";
 import { codexLocalProviderArgs } from "./local-inject.ts";
 import { augmentedPath, splitCliString } from "../env-path.ts";
-import { classifyError, computeBackoff, interruptibleDelay, RETRY_MAX_ATTEMPTS } from "./retry.ts";
+import { classifyError, interruptibleDelay, planRetry, quotaStopMessage, RETRY_MAX_ATTEMPTS } from "./retry.ts";
 import { appendNative } from "./native.ts";
 import { permissionCommand, permissionLaunchCwd } from "./permission-command.ts";
 import { commandSummary, toolDetailPreview } from "../tool-summary.ts";
@@ -1732,6 +1732,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           signal !== null
             ? { transient: false, reason: "interrupted" }
             : classifyError({ exitCode: code, stderr: recentStderr });
+        const retryPlan = planRetry({ attempt, text: recentStderr });
         // Safe re-dispatch: relaunch only when the app-server never
         // acknowledged turn/start — no native turn began, nothing was
         // streamed, so replaying the input cannot duplicate work. After
@@ -1739,9 +1740,10 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         // settles instead: a replay could re-run tools the user saw.
         if (
           !stopRequested && codexTurnId === null && earlyNotifications.length === 0 &&
+          !retryPlan.stop &&
           verdict.transient && attempt < RETRY_MAX_ATTEMPTS - 1
         ) {
-          const delayMs = computeBackoff(attempt);
+          const delayMs = retryPlan.delayMs;
           attempt++;
           emit({
             ...base(threadId, turnId),
@@ -1769,12 +1771,14 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           })().catch(() => {});
           return;
         }
+        const exitMessage = `codex exited ${code}${signal ? ` (signal ${signal})` : ""} before turn/completed${
+          recentStderr ? `: ${recentStderr.slice(-300)}` : hadStreamedOutput && stderr.trim() ? "; no stderr after the last app-server output" : ""
+        }`;
+        const clearExit = signal !== null ? null : retryPlan.stop ? retryPlan.message : quotaStopMessage(recentStderr);
         emit({
           ...base(threadId, turnId),
           type: "runtime.error",
-          message: `codex exited ${code}${signal ? ` (signal ${signal})` : ""} before turn/completed${
-            recentStderr ? `: ${recentStderr.slice(-300)}` : hadStreamedOutput && stderr.trim() ? "; no stderr after the last app-server output" : ""
-          }`,
+          message: clearExit ?? exitMessage,
         });
         void settle(false, "exit_before_result");
       });
@@ -2033,11 +2037,12 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         const message = refused ? codexSignInExpired(raw) : codexUserError(raw, plan);
         const needsAuth = refused || /(?:\b401\b|unauthorized|missing bearer|authentication required)/i.test(message);
         const verdict = classifyError(failure);
+        const retryPlan = planRetry({ attempt, text: raw });
         // Three guards hold here: main's abandoned attempt never retries,
         // neither does a Company session already recovered once from canonical
         // history, and a Stop already asked for must not be undone by a relaunch.
-        if (!state.settled && !abandoned && !recoveredMissingSession && !stopRequested && !needsAuth && verdict.transient && attempt < RETRY_MAX_ATTEMPTS - 1 && state.sawStreamDelta === false) {
-          const delayMs = computeBackoff(attempt);
+        if (!state.settled && !abandoned && !recoveredMissingSession && !stopRequested && !needsAuth && !retryPlan.stop && verdict.transient && attempt < RETRY_MAX_ATTEMPTS - 1 && state.sawStreamDelta === false) {
+          const delayMs = retryPlan.delayMs;
           attempt++;
           emit({
             ...base(threadId, turnId),
@@ -2065,10 +2070,13 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         // timeouts must neither report a spurious error nor relaunch again
         if (!state.settled && !abandoned) {
           if (refused) loginRefused();
+          const clear = needsAuth || message.includes("subscription_sharing_usage_limit_exceeded")
+            ? null
+            : retryPlan.stop ? retryPlan.message : quotaStopMessage(message);
           emit({
             ...base(threadId, turnId),
             type: "runtime.error",
-            message,
+            message: clear ?? message,
             ...(needsAuth ? { setup: true } : {}),
           });
           await settle(false, needsAuth ? "auth_required" : verdict.reason === "provider_safety" ? "provider_safety" : "rpc_error");
