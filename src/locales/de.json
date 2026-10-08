@@ -365,6 +365,8 @@
   "chat.retry": "Erneut versuchen",
   "chat.error.signedOut": "{name} ist noch nicht angemeldet. Melde dich unten an und sende deine Nachricht dann noch einmal.",
   "chat.error.details": "Details",
+  "chat.error.longRetry": "Der Anbieter hat mehr als 30 Sekunden Wartezeit verlangt, deshalb wurde dieser Durchgang beendet. Das ist meist ein Tages- oder Abrechnungslimit. Warte, bis es zurückgesetzt wird, oder wähle ein anderes Modell.",
+  "chat.error.quotaExhausted": "Dieses Konto hat kein Guthaben mehr oder das Kontingent ist aufgebraucht. Warte, bis es zurückgesetzt wird, oder wähle ein anderes Modell.",
   "chat.send": "Senden",
   "chat.editMessage": "Nachricht bearbeiten",
   "chat.reply": "Antworten",

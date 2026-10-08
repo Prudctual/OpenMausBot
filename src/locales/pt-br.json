@@ -365,6 +365,8 @@
   "chat.retry": "Tentar de novo",
   "chat.error.signedOut": "{name} ainda não está conectado. Entre abaixo e envie sua mensagem de novo.",
   "chat.error.details": "Detalhes",
+  "chat.error.longRetry": "O provedor pediu uma espera maior que 30 segundos, então este turno parou. Isso costuma ser um limite diário ou de cobrança. Espere a redefinição ou escolha outro modelo.",
+  "chat.error.quotaExhausted": "Esta conta está sem créditos ou a cota acabou. Espere a redefinição ou escolha outro modelo.",
   "chat.send": "Enviar",
   "chat.editMessage": "Editar mensagem",
   "chat.reply": "Responder",

@@ -18,7 +18,7 @@ import { promptHalves, volatileContextNote, withContextNote } from "./prompt-spl
 import { createChatToolApproval } from "./chat-tool-approval.ts";
 import { ChatProtocolError, ChatReasoningDetails, ChatToolCalls, object, type ChatToolCall } from "./openai-chat-protocol.ts";
 import { appendNative } from "./native.ts";
-import { classifyError, computeBackoff, interruptibleDelay, RETRY_MAX_ATTEMPTS } from "./retry.ts";
+import { classifyError, interruptibleDelay, planRetry, quotaStopMessage, RETRY_MAX_ATTEMPTS } from "./retry.ts";
 import { classifyContinuable, writeTurnHandoff } from "../turn-continuation.ts";
 import { KEY_REJECTED_REASON, keyRejected, noteKeyAccepted, noteKeyRejected, rejectsKey } from "../key-rejections.ts";
 
@@ -300,7 +300,10 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         if (messages.some((entry) => entry.reasoning_content !== undefined) && rejectsReasoningReplay(response.status, body)) {
           throw new UnsupportedReasoningReplayError(message);
         }
-        throw new Error(message);
+        const error = new Error(message);
+        const retryAfter = response.headers.get("retry-after");
+        if (retryAfter) (error as Error & { retryAfter?: string }).retryAfter = retryAfter;
+        throw error;
       }
       noteKeyAccepted(options.apiUrl, options.apiKey);
 
@@ -633,9 +636,17 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                 continue;
               }
               // Once a call has been handled, never replay it through a turn retry.
-              if (options.retryScale === undefined || abort.signal.aborted || streamed || seenCalls.size ||
-                  error instanceof ChatProtocolError || !verdict.transient || attempt >= RETRY_MAX_ATTEMPTS - 1) throw error;
-              const delayMs = computeBackoff(attempt++);
+              // A stop, a streamed reply, or a protocol error keeps its own words.
+              if (abort.signal.aborted || streamed || seenCalls.size || error instanceof ChatProtocolError) throw error;
+              const plan = planRetry({ attempt, error });
+              if (plan.stop) throw new Error(plan.message);
+              const quotaMessage = verdict.reason === "quota" ? quotaStopMessage(error.message) : null;
+              if (options.retryScale === undefined || !verdict.transient || attempt >= RETRY_MAX_ATTEMPTS - 1) {
+                if (quotaMessage) throw new Error(quotaMessage);
+                throw error;
+              }
+              const delayMs = plan.delayMs;
+              attempt++;
               emit({ ...base(turn.threadId, turnId), type: "turn.retrying", attempt, delayMs, reason: verdict.reason });
               await interruptibleDelay(delayMs * options.retryScale, abort.signal).promise;
               abort.signal.throwIfAborted();

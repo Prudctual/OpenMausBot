@@ -29,6 +29,7 @@ import { botAvatarUrlFromStoredPath } from "../shared/bot-avatar.ts";
 import { BOT_PROFILE_LIMITS } from "../shared/bot-profile.ts";
 import { CLOUD_COMPUTER_BUSY_ERROR } from "../shared/computer-contention.ts";
 import { failedTurnTool } from "../shared/failed-turn.ts";
+import { turnErrorText } from "./turn-error.ts";
 import { phonePairingLink } from "../shared/pairing-link.ts";
 import { canWorkOnCloud, type CloudEngine } from "../shared/cloud-computer.ts";
 import {
@@ -7910,7 +7911,7 @@ bus.subscribe((event: RuntimeEvent) => {
       pushMessage({
         role: "bot",
         kind: "activity",
-        tool: failedTurnTool(event.message, event),
+        tool: failedTurnTool(turnErrorText(event.message), event),
       });
       // a setup error means the engine could not even start: the bot is
       // dead until something changes, not merely idle. The next successful

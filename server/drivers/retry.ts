@@ -5,8 +5,12 @@
 // request-shape problem never does.
 import type { ProviderErrorCode } from "../contracts.ts";
 import { isProviderSafetyBlock } from "../../shared/provider-safety.ts";
+import { LONG_RETRY_MESSAGE, quotaExhaustedMessage } from "../../shared/provider-limits.ts";
 
 export const RETRY_MAX_ATTEMPTS = 3;
+
+/** A Retry-After longer than this is a daily or billing cap, not a hiccup. */
+export const RETRY_AFTER_CAP_MS = 30_000;
 
 /** Backoff schedule before attempt N (N is 1-based over retries): 1s / 3s / 8s. */
 export const BACKOFF_BASE_MS = [1_000, 3_000, 8_000] as const;
@@ -55,6 +59,7 @@ const TERMINAL_PATTERNS: Array<{ pattern: RegExp; reason: TerminalReason }> = [
   // for this engine even when the provider phrases it as a rate limit;
   // checked before the transient 429 pattern for that reason.
   { pattern: /\busage limit\b|\bhit your (?:usage )?limit\b|\b(?:weekly|daily|monthly|subscription|usage) limit reached\b|\bout of credits\b/i, reason: "quota" },
+  { pattern: /\binsufficient(?: account)? (?:funds|balance|credits)\b|\bcredits balance\b|\bprepaid credits\b|\bspend cap\b|\b(?:daily|weekly|monthly) limit\b/i, reason: "quota" },
   { pattern: /\b402\b|\bquota\b|\bbilling\b|\bsubscription\b/i, reason: "quota" },
   { pattern: /\bmodel not found\b|\bunknown model\b|\bdoes not exist for model\b|\bunsupported model\b/i, reason: "unknown_model" },
   { pattern: /\b400\b|\b422\b|\binvalid request\b|\bmalformed\b|\bunexpected status\b/i, reason: "invalid_request" },
@@ -126,6 +131,65 @@ export function computeBackoff(attempt: number, random: () => number = Math.rand
   const base = BACKOFF_BASE_MS[Math.min(Math.max(attempt, 0), BACKOFF_BASE_MS.length - 1)];
   const jitter = base * 0.25;
   return Math.round(base - jitter + random() * jitter * 2);
+}
+
+const RETRY_AFTER_HEADER = /(?:^|[^a-z0-9-])retry-after:\s*([^\r\n]+)/i;
+
+/** Delay-seconds or an HTTP date, in milliseconds. A past date is 0.
+ * Anything else is unusable and the caller keeps the fixed schedule. */
+export function parseRetryAfter(header: string, now = Date.now()): number | null {
+  const value = header.trim();
+  if (/^\d+$/.test(value)) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds)) return null;
+    if (seconds > RETRY_AFTER_CAP_MS / 1000) return RETRY_AFTER_CAP_MS + 1;
+    return seconds * 1000;
+  }
+  if (!/[a-z]/i.test(value)) return null;
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return null;
+  return Math.max(0, parsed - now);
+}
+
+function retryAfterHeader(error: unknown, text: string | undefined): string | null {
+  if (error && typeof error === "object" && "retryAfter" in error) {
+    const value = (error as { retryAfter?: unknown }).retryAfter;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  const source = text ?? (error instanceof Error ? error.message : "");
+  return RETRY_AFTER_HEADER.exec(source)?.[1]?.trim() ?? null;
+}
+
+export type RetryPlan =
+  | { stop: true; message: string }
+  | { stop: false; delayMs: number };
+
+/** The wait before the next attempt. A usable Retry-After replaces the
+ * 1s/3s/8s schedule with no jitter. Longer than the cap, the turn stops. */
+export function planRetry(input: {
+  attempt: number;
+  error?: unknown;
+  text?: string;
+  random?: () => number;
+  now?: number;
+}): RetryPlan {
+  const header = retryAfterHeader(input.error, input.text);
+  if (header !== null) {
+    const delayMs = parseRetryAfter(header, input.now ?? Date.now());
+    if (delayMs !== null) {
+      if (delayMs > RETRY_AFTER_CAP_MS) return { stop: true, message: LONG_RETRY_MESSAGE };
+      return { stop: false, delayMs };
+    }
+  }
+  return { stop: false, delayMs: computeBackoff(input.attempt, input.random) };
+}
+
+/** A plain sentence when this is a quota failure and the text is a raw
+ * long-quota error. A message that already says what to do stays as the
+ * driver wrote it. A short rate limit never classifies as quota. */
+export function quotaStopMessage(text: string): string | null {
+  if (classifyError({ text }).reason !== "quota") return null;
+  return quotaExhaustedMessage(text);
 }
 
 /** A cancellable backoff sleep. An interrupt during the wait resolves at

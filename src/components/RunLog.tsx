@@ -3,6 +3,7 @@ import { Check, CheckCircle2, Circle, Copy, Loader2, XCircle } from "lucide-reac
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { copyText } from "@/lib/copy-text";
+import { localizedFailureCause } from "@/lib/provider-limit-text";
 import { runLogText, type TimelineEvent } from "@/lib/taskTimeline";
 import { formatTime } from "@/state/store";
 
@@ -45,7 +46,7 @@ export function RunLog({ events }: { events: TimelineEvent[] }) {
             const Icon = event.state === "failed" ? XCircle : event.state === "complete" ? CheckCircle2 : event.state === "running" ? Loader2 : Circle;
             const label = event.kind === "task" ? t("inspector.run.userInput")
               : event.kind === "screen" ? t("inspector.run.screen")
-                : event.kind === "result" ? t("inspector.run.response") : event.label;
+                : event.kind === "result" ? t("inspector.run.response") : localizedFailureCause(event.label);
             return <li key={event.id} className="border-t border-hairline/30 py-3">
               <div className="flex items-start gap-2 text-[12px]">
                 <Icon size={14} aria-hidden="true" className={cn("mt-0.5 shrink-0", event.state === "failed" ? "text-danger" : event.state === "running" ? "animate-spin text-accent" : "text-ink-secondary")} />

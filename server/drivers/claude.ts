@@ -39,7 +39,7 @@ import { canUseMcpServer } from "../../shared/tool-scope.ts";
 import { assertToolScopeSupported } from "../../shared/tool-scope-support.ts";
 import { newEventId, newId } from "../contracts.ts";
 import { askInputSummary, commandSummary, toolDetailPreview } from "../tool-summary.ts";
-import { classifyError, computeBackoff, interruptibleDelay, RETRY_MAX_ATTEMPTS } from "./retry.ts";
+import { classifyError, interruptibleDelay, planRetry, quotaStopMessage, RETRY_MAX_ATTEMPTS } from "./retry.ts";
 import { sessionIdlePolicy } from "./session-idle.ts";
 import { parseVersionTriple, versionAtLeast } from "./acp/core.ts";
 import {
@@ -2264,17 +2264,20 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           const retry = retryState.get(threadId) ?? { attempt: 0, cancelled: false };
           const message = `claude exited ${code} before result${session.stderr ? `: ${session.stderr.trim().slice(-300)}` : ""}`;
           const verdict = classifyError({ exitCode: code, stderr: message });
+          const plan = planRetry({ attempt: retry.attempt, text: message });
           // A process kept warm from an earlier turn ended before it
           // announced this one: it never took the prompt. That is a session
           // ending between turns, not a failed turn, so the same turn
           // resumes the session on a fresh process at once — no retry row,
           // no retry budget spent. (A fresh process is never retained, so
-          // this happens at most once per turn.)
+          // this happens at most once per turn.) A Retry-After left in the
+          // previous turn's stderr must not delay that relaunch.
           const endedBeforeTurn = session.turn.awaitingInit === true;
           if (
             !retry.cancelled &&
             (endedBeforeTurn || (
               code !== 0 &&
+              !plan.stop &&
               verdict.transient &&
               !session.turn.sawStreamDelta &&
               retry.attempt < RETRY_MAX_ATTEMPTS - 1
@@ -2301,9 +2304,9 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
             sessions.delete(threadId);
             session.turn = null;
             let delayMs = 0;
-            if (!endedBeforeTurn) {
+            if (!endedBeforeTurn && !plan.stop) {
               retry.attempt++;
-              delayMs = computeBackoff(retry.attempt - 1);
+              delayMs = plan.delayMs;
               emit({
                 ...base(threadId, turnId),
                 type: "turn.retrying",
@@ -2373,7 +2376,8 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
             promptSubmitted: session.sawInit,
             producedOutput: session.turn.sawStreamDelta,
           });
-          if (mayReplay(resumeFailure) && !retry.cancelled) {
+          const clear = plan.stop ? plan.message : quotaStopMessage(message);
+          if (!clear && mayReplay(resumeFailure) && !retry.cancelled) {
             const recovery = recoveryPromptFor({
               recoveryText: turn.recoveryText,
               currentText: turn.text,
@@ -2427,7 +2431,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           emit({
             ...base(threadId, currentTurnId()),
             type: "runtime.error",
-            message,
+            message: clear ?? message,
           });
           settle(false, "exit_before_result");
         }
