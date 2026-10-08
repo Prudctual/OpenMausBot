@@ -36,6 +36,9 @@ import { RawMarkdownView, RawToggleAction } from "./RawMarkdownToggle";
 import { SpeakButton } from "./SpeakButton";
 import { useSpeech } from "@/lib/tts/useSpeech";
 import { localSystemVoiceActive } from "@/lib/local-voice";
+import { CancelledTurnRow } from "./CancelledTurnRow";
+import { isCancelledTranscriptRow } from "../../shared/client-cancel";
+import { peerLine } from "@/lib/peer-message";
 import { botEngine, failedTurnCause } from "@/lib/failed-turn";
 import { CitationSelectionToolbar, SentCitations } from "./CitationUI";
 import { Composer } from "./Composer";
@@ -367,6 +370,27 @@ export const Transcript = memo(function Transcript({
     message.kind !== "activity" || roomActivityVisible(message, showToolCalls))), [messages, showToolCalls]);
   const newestMessageId = messages.at(-1)?.id;
   const newestUserMessageId = [...messages].reverse().find((message) => message.role === "user")?.id;
+  const roomBusy = Boolean(group.busyBotId || group.working);
+  const lastPerson = [...transcript].reverse().find((message) =>
+    message.role === "user" && message.kind === "text" && Boolean(message.text?.trim()) && !peerLine(message));
+  let retryableId: string | undefined;
+  for (let index = transcript.length - 1; index >= 0; index -= 1) {
+    const candidate = transcript[index];
+    if (candidate && candidate.kind !== "digest" && candidate.kind !== "compaction") {
+      retryableId = candidate.id;
+      break;
+    }
+  }
+  const retryRoom = useCallback(() => {
+    if (!lastPerson?.text || roomBusy || lastPerson.id.startsWith("optimistic-")) return;
+    dispatch({
+      type: "sendGroup",
+      groupId: group.id,
+      text: lastPerson.text,
+      threadId: group.threadId,
+      mode: lastPerson.channelMode ?? "chat",
+    });
+  }, [dispatch, group.id, group.threadId, lastPerson, roomBusy]);
   const focus = state.focusMessage;
   const focusedId = focus && !focus.consumed && focus.threadId === group.threadId ? focus.messageId : null;
   return (
@@ -407,7 +431,11 @@ export const Transcript = memo(function Transcript({
         const routineTarget = routineOwner && hasRoutineExecutionTask(routineOwner.tasks, routineExecutionThreadId)
           ? { botId: routineOwner.id, threadId: routineExecutionThreadId }
           : undefined;
-        const row =
+        const canRetryRoom = m.id === retryableId && Boolean(lastPerson?.text) && !roomBusy && !lastPerson?.id.startsWith("optimistic-");
+        const row = isCancelledTranscriptRow(m) ? (
+          // Rooms have no edit fork, so Retry is the room's own send.
+          <CancelledTurnRow onRetry={canRetryRoom ? retryRoom : undefined} />
+        ) :
           // a member can hit a permission ask mid-turn; without this the
           // card never rendered here and the bot waited out its timeout.
           // `tool` distinguishes a permission from a QUESTION — a question
