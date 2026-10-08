@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { Message } from "./store.ts";
-import { threadTitlePrompt, titleConversationExcerpt, TITLE_INPUT_MAX_CHARS } from "./thread-title.ts";
+import { titleFromMessage, type Message } from "./store.ts";
+import { attachmentOnlyTitle, threadNamingText, threadTitlePrompt, titleConversationExcerpt, TITLE_INPUT_MAX_CHARS } from "./thread-title.ts";
 
 let next = 0;
 const message = (role: Message["role"], text: string, extra: Partial<Message> = {}): Message => ({
@@ -50,6 +50,47 @@ describe("titleConversationExcerpt", () => {
   it("is empty when there is nothing to name the thread from", () => {
     expect(titleConversationExcerpt([])).toBe("");
     expect(titleConversationExcerpt([message("bot", "   "), message("bot", "frame", { kind: "screen" })])).toBe("");
+  });
+
+  it("names an attachment-only line from the file names", () => {
+    const excerpt = titleConversationExcerpt([
+      message("user", '<attached-image path="/tmp/shot.png" name="shot.png" />\n\n<attached-file path="/tmp/notes.pdf" name="Q&amp;A notes.pdf" />'),
+    ]);
+    expect(excerpt).toBe("User: shot.png, Q&A notes.pdf");
+    expect(excerpt).not.toContain("attached-");
+    expect(excerpt).not.toContain("/tmp/");
+  });
+});
+
+describe("attachmentOnlyTitle", () => {
+  it("is empty when the message still has prose", () => {
+    expect(attachmentOnlyTitle('see this <attached-file path="/tmp/a.pdf" name="a.pdf" />')).toBe("");
+  });
+
+  it("uses the name, or the path basename when the name is missing", () => {
+    expect(attachmentOnlyTitle('<attached-file path="/tmp/payroll.xlsx" name="payroll.xlsx" />')).toBe("payroll.xlsx");
+    expect(attachmentOnlyTitle('<attached-image path="/tmp/diagram.png" />')).toBe("diagram.png");
+  });
+
+  it("redacts a credential that landed in a filename", () => {
+    const title = attachmentOnlyTitle('<attached-file path="/tmp/k.txt" name="sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789.txt" />');
+    expect(title).not.toContain("abcdefghijklmnopqrstuvwxyz0123456789");
+  });
+});
+
+describe("threadNamingText", () => {
+  it("keeps typed text and falls back to attachment names when the provider text is empty", () => {
+    const image = '<attached-image path="/tmp/shot.png" name="shot.png" />';
+    expect(threadNamingText(`look at this\n\n${image}`, "look at this")).toBe("look at this");
+    expect(threadNamingText(image, "")).toBe("shot.png");
+  });
+});
+
+describe("titleFromMessage", () => {
+  it("names an attachment-only message after the file and leaves prose titles alone", () => {
+    expect(titleFromMessage('<attached-file path="/tmp/payroll.xlsx" name="payroll.xlsx" />')).toBe("payroll.xlsx");
+    expect(titleFromMessage('Audit the payroll\n\n<attached-file path="/tmp/payroll.xlsx" name="payroll.xlsx" />')).toBe("Audit the payroll");
+    expect(titleFromMessage("x".repeat(80))).toHaveLength(48);
   });
 });
 

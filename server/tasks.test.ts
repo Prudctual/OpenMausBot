@@ -96,6 +96,8 @@ describe("tasks", () => {
     store.titleTaskFromFirstMessage(bot.id, "something else entirely");
     expect(store.activeTask(bot.id)!.title).toBe("Audit the payroll spreadsheet");
     expect(titleFromMessage("x".repeat(80))).toHaveLength(48);
+    expect(titleFromMessage('<attached-file path="/tmp/payroll.xlsx" name="payroll.xlsx" />')).toBe("payroll.xlsx");
+    expect(titleFromMessage('Audit the payroll\n\n<attached-file path="/tmp/payroll.xlsx" name="payroll.xlsx" />')).toBe("Audit the payroll");
   });
 
   it("returns the task it named, so a caller knows which title it may replace", async () => {

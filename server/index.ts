@@ -359,7 +359,7 @@ import { makeCapContinuationSubscriber } from "./turn-continuation.ts";
 import { buildRecoveryText, buildTurnContext, engineIsFresh, NATIVELY_REPLAYING_DRIVER_KINDS, peerMessageText } from "./turn-context.ts";
 import { Handoffs, handedStateUsable, recordHanded, renderUnseen, sessionStart, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts";
 import { extractTurnImages } from "./turn-images.ts";
-import { threadTitlePrompt, titleConversationExcerpt, type ThreadTitleSource } from "./thread-title.ts";
+import { threadNamingText, threadTitlePrompt, titleConversationExcerpt, type ThreadTitleSource } from "./thread-title.ts";
 import { TurnWatchdog } from "./turn-watchdog.ts";
 import { TurnResources, type TurnOwner } from "./turn-resources.ts";
 import {
@@ -9696,8 +9696,9 @@ async function startTurn(
   if (commsDepth > 0) markInternalTurn(threadId);
   else clearInternalTurn(threadId);
   // a task takes its name from the first thing you asked it to do
-  if (resolvedImages.text.trim() && !opts?.cardContinuation) {
-    const titled = store.titleTaskFromFirstMessage(bot.id, resolvedImages.text, threadId);
+  const namingText = threadNamingText(text, resolvedImages.text);
+  if (namingText && !opts?.cardContinuation) {
+    const titled = store.titleTaskFromFirstMessage(bot.id, namingText, threadId);
     // The snippet is only the fallback name. A cheap one-shot may trade it
     // for a title a person would have typed, but never on a peer-opened
     // row: its title belongs to the assigned work. Everywhere else, the
@@ -9705,7 +9706,7 @@ async function startTurn(
     // by a person has already broken that equality by then.
     const snippet = titled?.title;
     if (titled && snippet && !titled.openedBy?.botId && llmThreadTitlesEnabled(cfg) && instance.generateText) {
-      void generateThreadTitle(instance, resolvedImages.text)
+      void generateThreadTitle(instance, namingText)
         .then((title) => {
           if (title) store.retitleTask(bot.id, threadId, snippet, title);
         })
@@ -14008,7 +14009,8 @@ function startGroupTurn(
       });
   // Admitted (see startTurn): the room's speakers are booked to this sender.
   if (options.trigger) turnTriggers.set(threadId, options.trigger);
-  const titled = group.dm ? null : store.titleGroupTaskFromFirstMessage(group.id, text, threadId);
+  const namingText = threadNamingText(text, extractTurnImages(text).text);
+  const titled = group.dm ? null : store.titleGroupTaskFromFirstMessage(group.id, namingText || text, threadId);
   const snippet = titled?.title;
 
   const archived = members.filter((member) => member.hidden);
@@ -14067,7 +14069,7 @@ function startGroupTurn(
   // the person always wins. Channel tasks carry no peer provenance (no
   // assignment opens them), and a member whose engine offers no text
   // one-shot simply keeps the snippet.
-  const titleText = extractTurnImages(text).text;
+  const titleText = namingText;
   const startTitle = (titleBot: (typeof members)[number]) => {
     const titleInstance = registry.get(titleBot.modelSelection.instanceId);
     // An engine the organisation disallows never receives the text, even for a title.
