@@ -1957,6 +1957,26 @@ describe("loadConfig with an unusable config.json", () => {
       .toEqual([{ path: "config.json", reason: "invalid JSON" }]);
   });
 
+  it("strips absolute paths from the reason shown to non-admin viewers", () => {
+    const path = "/Users/ada/.openmausbot/config.json";
+    const eacces = `EACCES: permission denied, open '${path}'`;
+    const enoent = `ENOENT: no such file or directory, open '${path}'`;
+    const windows = "EACCES: permission denied, open 'C:\\Users\\ada\\.openmausbot\\config.json'";
+    expect(ignoredConfigFilesForAccess([{ path, reason: eacces }], false)).toEqual([
+      { path: "config.json", reason: "EACCES: permission denied, open 'config.json'" },
+    ]);
+    const hidden = ignoredConfigFilesForAccess(
+      [{ path, reason: enoent }, { path, reason: `open ${path}` }, { path, reason: windows }],
+      false,
+    );
+    expect(hidden.map((file) => file.reason).join("\n")).not.toContain("/Users/ada");
+    expect(hidden.map((file) => file.reason).join("\n")).not.toContain("C:\\Users");
+    expect(hidden[0]?.reason).toBe("ENOENT: no such file or directory, open 'config.json'");
+    expect(hidden[1]?.reason).toBe("open config.json");
+    expect(hidden[2]?.reason).toBe("EACCES: permission denied, open 'config.json'");
+    expect(ignoredConfigFilesForAccess([{ path, reason: eacces }], true)[0]?.reason).toBe(eacces);
+  });
+
   it("warns again after a repaired or removed file becomes broken", () => {
     for (const recovered of ["{}", null]) {
       writeFileSync(path, "{ not json");

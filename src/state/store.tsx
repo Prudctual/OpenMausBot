@@ -796,7 +796,9 @@ export function configStatusFromFrame(frame: ConfigStatusFrame): ConfigStatus {
     budgets: frame.budgets,
     billing: frame.billing,
     managedPolicy: frame.managedPolicy,
-    ignoredFiles: frame.ignoredFiles ?? [],
+    // Leave the key off when the frame does not carry it. Forcing an empty
+    // list changed the object shape that live frames already compare against.
+    ...(frame.ignoredFiles !== undefined ? { ignoredFiles: frame.ignoredFiles } : {}),
     ...(frame.cloudHome ? { cloudHome: true } : {}),
   };
 }

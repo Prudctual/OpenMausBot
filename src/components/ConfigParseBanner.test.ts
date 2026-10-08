@@ -26,6 +26,6 @@ describe("config parse banner", () => {
   it("keeps the warning when a live config frame arrives", () => {
     const frame = { ignoredFiles: [{ path: "config.json", reason: "invalid JSON" }] } as ConfigStatusFrame;
     expect(configStatusFromFrame(frame).ignoredFiles).toEqual(frame.ignoredFiles);
-    expect(configStatusFromFrame({} as ConfigStatusFrame).ignoredFiles).toEqual([]);
+    expect(configStatusFromFrame({} as ConfigStatusFrame)).not.toHaveProperty("ignoredFiles");
   });
 });

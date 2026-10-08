@@ -1019,10 +1019,34 @@ export function ignoredConfigFiles(): IgnoredConfigFile[] {
   return lastIgnoredConfigFile ? [{ ...lastIgnoredConfigFile }] : [];
 }
 
+function fileNameOf(filePath: string): string {
+  const trimmed = filePath.replace(/[\\/]+$/, "");
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return cut >= 0 ? trimmed.slice(cut + 1) : trimmed;
+}
+
+/** Node filesystem errors quote the absolute path (`open '/home/.../config.json'`).
+ * Keep the wording and leave only the file name. */
+export function configReasonForViewer(reason: string, admin: boolean): string {
+  if (admin) return reason;
+  const quoted = reason.replace(
+    /(['"`])((?:[A-Za-z]:[\\/]|\/)[^'"`]*)\1/g,
+    (_match, quote: string, filePath: string) => `${quote}${fileNameOf(filePath)}${quote}`,
+  );
+  return quoted.replace(
+    /(^|[\s(=])((?:[A-Za-z]:[\\/]|\/)[^\s'"`)\]]+)/g,
+    (_match, lead: string, filePath: string) => `${lead}${fileNameOf(filePath)}`,
+  );
+}
+
 /** Admins see the path. Other sessions see the file name, so a home
- * directory does not leave this machine. */
+ * directory does not leave this machine. The reason is scrubbed the same
+ * way: EACCES and ENOENT messages quote the full path. */
 export function ignoredConfigFilesForAccess(files: readonly IgnoredConfigFile[], admin: boolean): IgnoredConfigFile[] {
-  return files.map((file) => ({ path: admin ? file.path : basename(file.path), reason: file.reason }));
+  return files.map((file) => ({
+    path: admin ? file.path : basename(file.path),
+    reason: configReasonForViewer(file.reason, admin),
+  }));
 }
 
 export function loadConfig(): AppConfig {
