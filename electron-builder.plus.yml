@@ -174,10 +174,10 @@ extraResources:
     to: android-platform-tools
 
 mac:
-  # One single-arch dmg per CPU. No zip: Plus does not publish an updater feed.
+  # Apple Silicon only. No zip: Plus does not publish an updater feed.
   target:
     - target: dmg
-      arch: [arm64, x64]
+      arch: [arm64]
   icon: build/icon-plus-1024.png
   identity: null
   category: public.app-category.productivity
