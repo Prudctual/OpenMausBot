@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   filterShortcutGroups,
+  isPinThreadShortcut,
+  selectedThreadPinChoice,
   SHORTCUT_GROUPS,
   shouldOpenKeyboardShortcuts,
   shortcutKeysForPlatform,
@@ -94,6 +96,18 @@ describe("keyboard shortcut opening guard", () => {
     expect(shouldOpenKeyboardShortcuts(event("?", { target }))).toBe(false);
     expect(shouldOpenKeyboardShortcuts(event("/", { target, metaKey: true }))).toBe(false);
     expect(shouldOpenKeyboardShortcuts(event("/", { target, ctrlKey: true }))).toBe(false);
+  });
+
+  it("pins the open thread with cmd shift p, and not while typing", () => {
+    expect(isPinThreadShortcut(event("p", { metaKey: true, shiftKey: true }), event("p").target)).toBe(true);
+    expect(isPinThreadShortcut(event("p", { ctrlKey: true, shiftKey: true }), event("p").target)).toBe(true);
+    expect(isPinThreadShortcut(event("p", { metaKey: true }), event("p").target)).toBe(false);
+    expect(isPinThreadShortcut(event("p", { metaKey: true, shiftKey: true, target: new Target("textarea") }), new Target("textarea"))).toBe(false);
+    const bots = [{ id: "scout", threadId: "t1", tasks: [{ threadId: "t1", title: "Payroll", pinned: false }] }];
+    expect(selectedThreadPinChoice({ activeView: "chat", selectedId: "scout", bots, groups: [] })).toEqual({
+      owner: "bot", id: "scout", threadId: "t1", title: "Payroll", pinned: false,
+    });
+    expect(selectedThreadPinChoice({ activeView: "routines", selectedId: "scout", bots, groups: [] })).toBeNull();
   });
 
   it("respects editable ancestors, composition, handled events, and extra modifiers", () => {
