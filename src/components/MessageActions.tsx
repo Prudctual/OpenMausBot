@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Ellipsis } from "lucide-react";
 import { popoverClosesOnKey, usePopoverDismiss } from "@/hooks/use-popover-dismiss";
 import { cn } from "@/lib/cn";
@@ -49,7 +49,6 @@ export function MessageActions({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLButtonElement>(null);
-  const pointerType = useRef("");
   const [mode, setMode] = useState<TrayMode>("auto");
   const [hovered, setHovered] = useState(false);
   const [keyboardFocus, setKeyboardFocus] = useState(false);
@@ -57,12 +56,11 @@ export function MessageActions({
   const open = held || (mode === "auto" && (hovered || keyboardFocus));
   const mirrored = side === "user";
   usePopoverDismiss(mode === "held", rootRef, () => setMode(hovered || keyboardFocus ? "tucked" : "auto"));
-  const toggle = () => {
+  const toggle = (e: MouseEvent<HTMLButtonElement>) => {
     // a mouse or a tap holds the tray, the hover-opened one included. Enter or
-    // Space on the handle comes with no pointerdown, and keyboard focus has
-    // already opened an "auto" tray, so the keyboard tucks it
-    const keyboard = pointerType.current === "";
-    pointerType.current = "";
+    // Space clicks with detail 0, and keyboard focus has already opened an
+    // "auto" tray, so the keyboard tucks it
+    const keyboard = e.detail === 0;
     const shown = held || (mode === "auto" && keyboard);
     setMode(shown ? "tucked" : "held");
   };
@@ -103,9 +101,6 @@ export function MessageActions({
       <button
         ref={handleRef}
         type="button"
-        onPointerDown={(e) => {
-          pointerType.current = e.pointerType;
-        }}
         onClick={toggle}
         aria-label={t("chat.messageActions")}
         title={t("chat.messageActions")}

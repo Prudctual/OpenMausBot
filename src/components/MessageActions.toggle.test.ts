@@ -29,10 +29,11 @@ const pointer = (type: string, target: Element, pointerType: string, relatedTarg
   });
 const enter = () => pointer("pointerover", handle(), "mouse");
 const leave = () => pointer("pointerout", handle(), "mouse", document.body);
+// a mouse or a tap clicks with detail 1, Enter or Space with detail 0
 const press = (pointerType: string) =>
   act(async () => {
     handle().dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType }));
-    handle().click();
+    handle().dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
   });
 
 async function render(forceOpen = false) {
@@ -108,6 +109,21 @@ describe("MessageActions handle", () => {
     expect(revealsOnHover()).toBe(true);
     await enter();
     expect(expanded()).toBe("true");
+  });
+
+  it("treats Enter after a press dragged off the handle as the keyboard", async () => {
+    await render();
+    await act(async () => {
+      handle().focus();
+    });
+    // pointerdown with no click: the press ended off the handle
+    await pointer("pointerdown", handle(), "mouse");
+    await act(async () => {
+      handle().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      handle().click();
+    });
+    expect(held()).toBe(false);
+    expect(revealsOnHover()).toBe(false);
   });
 
   it("hovers open again after Escape closed a held tray from away", async () => {
