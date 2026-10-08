@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { liveActivityLabel, parseRetryActivity, retryCountdownText, retrySecondsRemaining } from "./live-activity";
+import {
+  liveActivityLabel,
+  parseRetryActivity,
+  retryCountdownActive,
+  retryCountdownText,
+  retryPresence,
+  retrySecondsRemaining,
+} from "./live-activity";
 import type { Message } from "@/state/store";
 
 const activity = (name: string, extra: Partial<NonNullable<Message["tool"]>> = {}): Message => ({
@@ -36,12 +43,28 @@ describe("liveActivityLabel", () => {
   it("names a retry backoff even after the chip is marked done", () => {
     const chip = activity("retrying — attempt 2/3 in 5s — overloaded", { ok: true });
     chip.at = 10_000;
-    expect(liveActivityLabel(chip)).toBe("Retrying, attempt 2/3");
+    expect(liveActivityLabel(chip, 12_400)).toBe("Retrying, attempt 2/3");
     expect(parseRetryActivity(chip)).toEqual({ attempt: 2, max: 3, delaySec: 5, startedAt: 10_000 });
     expect(retrySecondsRemaining(parseRetryActivity(chip)!, 12_400)).toBe(3);
     expect(retryCountdownText(parseRetryActivity(chip)!, 12_400)).toBe("Retrying, attempt 2/3, 3s");
     expect(retrySecondsRemaining({ delaySec: 5, startedAt: 0 }, 12_400)).toBe(5);
     expect(retrySecondsRemaining(parseRetryActivity(chip)!, 20_000)).toBe(0);
+  });
+
+  it("returns to the ordinary working label once the announced delay has passed", () => {
+    const chip = activity("retrying — attempt 2/3 in 5s — overloaded", { ok: true });
+    chip.at = 10_000;
+    const retry = parseRetryActivity(chip)!;
+    expect(retryCountdownActive(retry, 14_999)).toBe(true);
+    expect(retryCountdownActive(retry, 15_000)).toBe(false);
+    expect(liveActivityLabel(chip, 14_999)).toBe("Retrying, attempt 2/3");
+    expect(liveActivityLabel(chip, 15_000)).toBe("Thinking");
+    expect(retryCountdownText(retry, 15_000)).toBe("Retrying, attempt 2/3, 0s");
+    expect(retryPresence(retry, "Retrying, attempt 2/3", 15_000)).toEqual({
+      countdown: false,
+      label: "Thinking",
+    });
+    expect(retryPresence(retry, "Retrying, attempt 2/3", 12_400).countdown).toBe(true);
   });
 
   it("leaves an ordinary finished tool as thinking", () => {

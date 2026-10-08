@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { RetryCountdownLabel, WorkingTimer } from "@/components/WorkingIndicator";
-import type { RetryActivity } from "@/lib/live-activity";
+import { retryPresence, type RetryActivity } from "@/lib/live-activity";
 
 export function TurnPresence({
   avatar,
@@ -25,7 +25,21 @@ export function TurnPresence({
 }) {
   const [mounted, setMounted] = useState(visible);
   const [phase, setPhase] = useState<"think" | "answer" | "out">(answering ? "answer" : "think");
+  const [retryNow, setRetryNow] = useState(() => Date.now());
   const wasAnswering = useRef(answering);
+
+  // The retry chip stays the last activity after the delay, while the reply
+  // streams invisibly. Drop the countdown on that deadline so the elapsed
+  // timer can take over without waiting for another transcript frame.
+  useEffect(() => {
+    const current = Date.now();
+    setRetryNow(current);
+    if (!retry?.startedAt) return;
+    const delay = retry.startedAt + retry.delaySec * 1000 - current;
+    if (delay <= 0) return;
+    const timer = setTimeout(() => setRetryNow(Date.now()), delay);
+    return () => clearTimeout(timer);
+  }, [retry?.attempt, retry?.delaySec, retry?.max, retry?.startedAt]);
 
   useEffect(() => {
     if (visible) {
@@ -48,6 +62,7 @@ export function TurnPresence({
 
   if (!mounted) return null;
   const showWorking = phase === "think";
+  const presence = retryPresence(retry ?? null, label, retryNow);
   return (
     <div className="turn-presence flex flex-col items-start">
       <div
@@ -60,14 +75,14 @@ export function TurnPresence({
         {avatar}
         {showWorking ? (
           <span className="flex items-baseline gap-2 leading-none">
-            {retry ? (
+            {presence.countdown && retry ? (
               <RetryCountdownLabel retry={retry} />
             ) : (
               <span className="thinking-shimmer animate-shimmer text-[13px]">
-                {label}
+                {presence.label}
               </span>
             )}
-            {since !== null && !retry && (
+            {since !== null && !presence.countdown && (
               <WorkingTimer since={since} className="text-[11.5px] text-ink-tertiary" />
             )}
           </span>

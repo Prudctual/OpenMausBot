@@ -40,6 +40,28 @@ export function retrySecondsRemaining(retry: Pick<RetryActivity, "delaySec" | "s
   return Math.max(0, retry.delaySec - elapsed);
 }
 
+/** The countdown is only the live action while the announced delay is still
+ * running. After that the chip stays in the transcript, but the turn itself
+ * is working again. */
+export function retryCountdownActive(retry: Pick<RetryActivity, "delaySec" | "startedAt">, now: number): boolean {
+  return retrySecondsRemaining(retry, now) > 0;
+}
+
+/** What the working row should show. Once the delay has passed, the row
+ * returns to the ordinary working label even if the parent still holds the
+ * retry wording from before the wait ended. */
+export function retryPresence(
+  retry: RetryActivity | null,
+  label: string,
+  now: number,
+): { countdown: boolean; label: string } {
+  if (retry && retryCountdownActive(retry, now)) {
+    return { countdown: true, label: retryCountdownText(retry, now) };
+  }
+  if (retry) return { countdown: false, label: t("chat.activity.thinking") };
+  return { countdown: false, label };
+}
+
 export function retryCountdownText(retry: RetryActivity, now: number): string {
   return t("chat.activity.retrying", {
     attempt: retry.attempt,
@@ -80,9 +102,11 @@ function sentenceCase(value: string): string {
  * The server-provided narration is authoritative; fallbacks cover older
  * messages and third-party drivers that only report a tool name.
  */
-export function liveActivityLabel(message?: Message): string {
+export function liveActivityLabel(message?: Message, now = Date.now()): string {
   const retry = parseRetryActivity(message);
-  if (retry) return t("chat.activity.retryingAttempt", { attempt: retry.attempt, max: retry.max });
+  if (retry && retryCountdownActive(retry, now)) {
+    return t("chat.activity.retryingAttempt", { attempt: retry.attempt, max: retry.max });
+  }
 
   if (
     message?.kind !== "activity" ||
