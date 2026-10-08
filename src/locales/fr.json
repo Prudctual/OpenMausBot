@@ -1477,5 +1477,8 @@
   "place.view.ccNew.short": "Prêt",
   "place.view.ccAtOnce.short": "En cours d’utilisation",
   "place.view.localUnavailable.short": "Pas prêt",
-  "place.view.autoTeam.short": "Partagé"
+  "place.view.autoTeam.short": "Partagé",
+  "settings.config.ignored": "{path} n'a pas pu être lu et est ignoré : {reason}",
+  "settings.config.copyPath": "Copier le chemin",
+  "settings.config.copied": "Copié"
 }

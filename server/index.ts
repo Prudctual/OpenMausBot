@@ -202,6 +202,8 @@ import {
   liveSettingsFor,
   mergeOpenCodeProviderKeys,
   openCodeProviderKeys,
+  ignoredConfigFiles,
+  ignoredConfigFilesForAccess,
 } from "./config.ts";
 import { sweepThreadEventLogs, type ThreadLogRetentionCandidate } from "./thread-retention.ts";
 import { ComputerControl } from "./computer-control.ts";
@@ -15568,6 +15570,9 @@ function configStatus() {
     signIn: { admins: cfg.signIn?.admins ?? [], members: cfg.signIn?.members ?? [] },
     // whether that list decides anything here, or the organisation's Admin does
     membership: workspaceMembership(),
+    // a settings file this process could not parse. The path is narrowed
+    // for non-admin sessions in configForAccess.
+    ignoredFiles: ignoredConfigFiles(),
   };
 }
 
@@ -15584,6 +15589,7 @@ function configForAccess(status: ReturnType<typeof configStatus>, admin: boolean
     opencodeGo: { configured: status.opencodeGo.configured, providerKeys: [] },
     profile: { name: status.profile.name, email: "" },
     browserProfiles: status.browserProfiles.map((profile) => Object.fromEntries(Object.entries(profile).filter(([key]) => key !== "partitionId"))),
+    ignoredFiles: ignoredConfigFilesForAccess(status.ignoredFiles, admin),
   };
 }
 

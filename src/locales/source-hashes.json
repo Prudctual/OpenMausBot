@@ -1498,7 +1498,10 @@
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
       "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     },
     "es": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -2979,7 +2982,10 @@
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
       "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     },
     "fr": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -4460,7 +4466,10 @@
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
       "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     },
     "hi": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -5941,7 +5950,10 @@
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
       "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     },
     "ja": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -7424,7 +7436,10 @@
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
       "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     },
     "pt-br": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -8918,7 +8933,10 @@
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
       "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     },
     "zh": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -11350,7 +11368,10 @@
       "settings.mcpCalls.error": "be999a512b832def08c23ad6e85145183598f18ff9bb79075a419fbec42aba1f",
       "settings.mcpCalls.range": "5023bf6d4be92ea4f7aab1f63c9d193d628b8ca27ea9983e530b2c4e0c257f70",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     },
     "zh-tw": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -13775,7 +13796,10 @@
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
       "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     },
     "uk": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -15802,7 +15826,10 @@
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
       "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
+      "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
     }
   }
 }

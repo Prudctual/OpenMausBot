@@ -3,7 +3,7 @@
 //     "instances": { "<instanceId>": {"driver":"grok", …} } }
 import { readFileSync, mkdirSync, existsSync, renameSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod";
 import { normalizeImageGenerationUrl, type ImageGenerationConfig } from "../shared/image-generation.ts";
 
@@ -1010,11 +1010,51 @@ function migrateLegacyFeatureFlags(): void {
  * broken is reported once rather than on every loadConfig() call. */
 let lastIgnoredConfigWarning = "";
 
+/** A settings file this process is ignoring. The reason is the same safe
+ * text the log uses, never a fragment of the file. */
+export type IgnoredConfigFile = { path: string; reason: string };
+let lastIgnoredConfigFile: IgnoredConfigFile | null = null;
+
+export function ignoredConfigFiles(): IgnoredConfigFile[] {
+  return lastIgnoredConfigFile ? [{ ...lastIgnoredConfigFile }] : [];
+}
+
+function fileNameOf(filePath: string): string {
+  const trimmed = filePath.replace(/[\\/]+$/, "");
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return cut >= 0 ? trimmed.slice(cut + 1) : trimmed;
+}
+
+/** Node filesystem errors quote the absolute path (`open '/home/.../config.json'`).
+ * Keep the wording and leave only the file name. */
+export function configReasonForViewer(reason: string, admin: boolean): string {
+  if (admin) return reason;
+  const quoted = reason.replace(
+    /(['"`])((?:[A-Za-z]:[\\/]|\/)[^'"`]*)\1/g,
+    (_match, quote: string, filePath: string) => `${quote}${fileNameOf(filePath)}${quote}`,
+  );
+  return quoted.replace(
+    /(^|[\s(=])((?:[A-Za-z]:[\\/]|\/)[^\s'"`)\]]+)/g,
+    (_match, lead: string, filePath: string) => `${lead}${fileNameOf(filePath)}`,
+  );
+}
+
+/** Admins see the path. Other sessions see the file name, so a home
+ * directory does not leave this machine. The reason is scrubbed the same
+ * way: EACCES and ENOENT messages quote the full path. */
+export function ignoredConfigFilesForAccess(files: readonly IgnoredConfigFile[], admin: boolean): IgnoredConfigFile[] {
+  return files.map((file) => ({
+    path: admin ? file.path : basename(file.path),
+    reason: configReasonForViewer(file.reason, admin),
+  }));
+}
+
 export function loadConfig(): AppConfig {
   let cfg: AppConfig = {};
   try {
     cfg = parseStoredConfig(parseJson(readFileSync(join(DATA_DIR, "config.json"), "utf8")));
     lastIgnoredConfigWarning = "";
+    lastIgnoredConfigFile = null;
   } catch (error) {
     // No file yet is a normal first run: env fallbacks below. Any other failure
     // (unreadable file, invalid JSON, a schema error in one field) means the
@@ -1027,11 +1067,14 @@ export function loadConfig(): AppConfig {
       // A malformed credential must never be copied into the server log.
       const reason = error instanceof SyntaxError ? "invalid JSON"
         : error instanceof Error ? error.message : "unable to read configuration";
-      const warning = `config: ignoring ${join(DATA_DIR, "config.json")} and using defaults: ${reason}`;
+      const filePath = join(DATA_DIR, "config.json");
+      const warning = `config: ignoring ${filePath} and using defaults: ${reason}`;
       if (warning !== lastIgnoredConfigWarning) console.warn(warning);
       lastIgnoredConfigWarning = warning;
+      lastIgnoredConfigFile = { path: filePath, reason };
     } else {
       lastIgnoredConfigWarning = "";
+      lastIgnoredConfigFile = null;
     }
   }
   // Env wins over the file for every credential. The desktop shell keeps
