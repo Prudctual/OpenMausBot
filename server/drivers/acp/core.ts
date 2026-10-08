@@ -2012,19 +2012,37 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
                   }
                 }
                 if (cliTurn.model && cliTurn.model !== selectedModel) {
-                  sessionResult = await request(
-                    "session/set_config_option",
-                    { sessionId, configId, value: cliTurn.model },
-                    INIT_TIMEOUT,
-                    receiveModelVariants,
-                  );
+                  const model = cliTurn.model;
+                  // A model the session does not list is one this account cannot
+                  // run here: the provider retired it, or it belongs to another
+                  // plan. The switch still decides, but a refusal is told in
+                  // those words rather than the runtime's "Invalid params", which
+                  // stay after them. A pooled process older than the catalog
+                  // keeps the runtime's words: a fresh process may offer it.
+                  const unoffered = offered.length > 0 && !offered.includes(model)
+                    && (launchedThisTurn || !models.options.some((option) => option.id === model));
+                  const unofferedMessage = (detail: string) =>
+                    `${support.displayName} does not offer ${model} to this account, so nothing was sent. ` +
+                    `Choose another model for this bot or conversation. (${detail})`;
+                  try {
+                    sessionResult = await request(
+                      "session/set_config_option",
+                      { sessionId, configId, value: model },
+                      INIT_TIMEOUT,
+                      receiveModelVariants,
+                    );
+                  } catch (error) {
+                    if (unoffered && error instanceof Error && (error as any).code === -32602) {
+                      error.message = unofferedMessage(error.message);
+                    }
+                    throw error;
+                  }
                   selectedModel = modelOf(session.sessionConfigResult);
                   // an agent that answers OK but keeps its old model is worse than
                   // one that errors: it burns a paid turn on the wrong thing
-                  if (selectedModel !== cliTurn.model) {
-                    throw new Error(
-                      `${DRIVER_KIND} did not switch to ${cliTurn.model} (still ${selectedModel ?? "unknown"})`,
-                    );
+                  if (selectedModel !== model) {
+                    const stuck = `${DRIVER_KIND} did not switch to ${model} (still ${selectedModel ?? "unknown"})`;
+                    throw new Error(unoffered ? unofferedMessage(stuck) : stuck);
                   }
                 }
               }

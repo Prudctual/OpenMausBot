@@ -104,6 +104,9 @@
 //   FAKE_ACP_MODEL_STICKS  session/set_config_option succeeds but leaves the
 //                        model where it was, so the confirmation guard in
 //                        core.ts has something to catch
+//   FAKE_ACP_MODEL_REMAP  comma-separated old=new pairs: switching to an
+//                        unlisted old id answers OK and lands on new, the way
+//                        agy_acp_server maps a retired model to its replacement
 //   FAKE_ACP_VARIANTS JSON map of model -> {id?, currentValue?, options} using
 //                        ACP select values/groups; never contacts a provider.
 //   FAKE_ACP_CONFIG_UPDATES JSON array of {after, sessionId?, configOptions,
@@ -760,6 +763,20 @@ function handle(msg: any) {
           writeFileSync(`${process.env.FAKE_ACP_DUMP}.config.json`, JSON.stringify(configCalls, null, 2));
         }
         result(msg.id, process.env.FAKE_ACP_EMPTY_MODE_ACK ? {} : { configOptions: configOptions() });
+        break;
+      }
+      const remapped = configId === "model" && !models.includes(value)
+        ? (process.env.FAKE_ACP_MODEL_REMAP ?? "").split(",").map((pair) => pair.split("="))
+          .find(([from, to]) => from === value && models.includes(to))?.[1]
+        : undefined;
+      if (remapped) {
+        currentModel = remapped;
+        currentVariant = variantConfigs[remapped]?.currentValue;
+        configCalls.push({ method: msg.method, params: msg.params });
+        if (process.env.FAKE_ACP_DUMP) {
+          writeFileSync(`${process.env.FAKE_ACP_DUMP}.config.json`, JSON.stringify(configCalls, null, 2));
+        }
+        resultAndConfigUpdates(msg.id, { configOptions: configOptions() }, "model", msg.params.sessionId);
         break;
       }
       if (configId !== "model" || !models.includes(value)) {
