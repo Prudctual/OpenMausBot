@@ -55,10 +55,17 @@ export function turnClockLine(at: number, timeZone: string): string {
   return `${TURN_CLOCK_LEAD}${part("weekday")}, ${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")} ${read.timeZone} (UTC${offset}).`;
 }
 
-/** The clock line in front of a turn's text. An empty text (an image alone)
- * and a slash command go through unchanged: a prefix would turn an engine's
- * own command into plain prose. */
+/** Whether the person's own text takes the line. An empty text (an image
+ * alone) and a slash command do not: a prefix would turn an engine's own
+ * command into plain prose. Decided on what the person sent, before any
+ * replay or unseen-messages context is put in front of it. */
+export function takesTurnClock(text: string): boolean {
+  return Boolean(text.trim()) && !text.trimStart().startsWith("/");
+}
+
+/** The clock line in front of a turn's text, unless the text itself is one
+ * that skips it (see takesTurnClock). An empty clock leaves the text as is. */
 export function withTurnClock(clock: string, text: string): string {
-  if (!clock || !text.trim() || text.trimStart().startsWith("/")) return text;
+  if (!clock || !takesTurnClock(text)) return text;
   return `${clock}\n\n${text}`;
 }

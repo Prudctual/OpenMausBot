@@ -189,7 +189,7 @@ posixOnly("mid-turn steering e2e", () => {
 
       await waitFor(async () => (await getBot(created.id)).busy === false, "the turn to settle");
       const bot = await getBot(created.id);
-      const texts = bot.messages.filter((m: any) => m.kind === "text").map((m: any) => `${m.role}:${withoutTurnClock(m.text)}`);
+      const texts = bot.messages.filter((m: any) => m.kind === "text").map((m: any) => `${m.role}:${m.role === "bot" ? withoutTurnClock(m.text) : m.text}`);
       // order: greeting, first, the fake's opening line, the steered message
       // (appended when it was sent — mid-turn), then ONE reply carrying it
       expect(texts.slice(1)).toEqual([
@@ -256,7 +256,7 @@ posixOnly("mid-turn steering e2e", () => {
     // and the pass dies with the turn, once the turn is really over
     expect(await internalTools()).toBe(401);
     const bot = await getBot(created.id);
-    const texts = bot.messages.filter((m: any) => m.kind === "text").map((m: any) => `${m.role}:${withoutTurnClock(m.text)}`);
+    const texts = bot.messages.filter((m: any) => m.kind === "text").map((m: any) => `${m.role}:${m.role === "bot" ? withoutTurnClock(m.text) : m.text}`);
     expect(texts.slice(1)).toEqual([
       "user:first",
       "bot:hello from fake claude",

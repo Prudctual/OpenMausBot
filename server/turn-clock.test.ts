@@ -2,7 +2,7 @@
 // timezones, offsets and day boundaries, the turns it leaves alone, and that
 // a later turn of the same conversation is stamped with its own time.
 import { describe, expect, it } from "vitest";
-import { hostTimeZone, turnClockLine, withTurnClock } from "./turn-clock.ts";
+import { hostTimeZone, takesTurnClock, turnClockLine, withTurnClock } from "./turn-clock.ts";
 
 const at = (iso: string) => Date.parse(iso);
 
@@ -62,6 +62,17 @@ describe("withTurnClock", () => {
     expect(withTurnClock(clock, "  \n")).toBe("  \n");
     expect(withTurnClock(clock, "/compact")).toBe("/compact");
     expect(withTurnClock(clock, "  /review the diff")).toBe("  /review the diff");
+  });
+
+  it("decides on the person's own text, not on the context put in front of it", () => {
+    expect(takesTurnClock("what day is it?")).toBe(true);
+    expect(takesTurnClock("")).toBe(false);
+    expect(takesTurnClock("/compact")).toBe(false);
+    // dispatch passes an empty clock when the person's text skips it, so a
+    // replayed transcript ahead of an image or a slash command stays as is
+    const replayed = "Earlier in this conversation:\nuser: hi\n\n/compact";
+    expect(withTurnClock(takesTurnClock("/compact") ? clock : "", replayed)).toBe(replayed);
+    expect(withTurnClock(takesTurnClock("") ? clock : "", "Earlier in this conversation:\nuser: hi")).toBe("Earlier in this conversation:\nuser: hi");
   });
 
   it("stamps each turn of a long conversation with its own time", () => {
