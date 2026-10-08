@@ -67,7 +67,7 @@ import { useTranscriptViewport } from "@/hooks/use-transcript-viewport";
 import { appendDraftAttachments, useReplyDraft } from "@/lib/drafts";
 import { citationPreviewText, splitTranscriptCitations, type CitationAttachment } from "@/lib/citations";
 import { highlightCitationSource } from "@/lib/citations-dom";
-import { latestReply, type TranscriptSnapshot } from "@/lib/transcript-announcer";
+import { latestFailure, latestReply, type TranscriptSnapshot } from "@/lib/transcript-announcer";
 import { pendingApprovals } from "./PendingApproval";
 import { TranscriptAnnouncer } from "./TranscriptAnnouncer";
 import { dayLabel, localDay } from "@/lib/transcript-derivations";
@@ -1069,6 +1069,7 @@ export function GroupView({ group }: { group: Group }) {
     return {
       busy: Boolean(group.working || group.busyBotId),
       reply: latestReply(group.messages, (m) => m.from?.name ?? group.name),
+      failure: latestFailure(group.messages, (m) => m.from?.name ?? group.name),
       approval: approval
         ? { id: approval.requestId, name: approval.message.from?.name ?? speaker?.name ?? group.name }
         : undefined,
@@ -1263,6 +1264,7 @@ export function GroupView({ group }: { group: Group }) {
           <div className="mb-1 rounded-lg border border-hairline/40 bg-panel p-2">
             <textarea
               autoFocus
+              dir="auto"
               value={bulletinDraft}
               onChange={(e) => setBulletinDraft(e.target.value)}
               onBlur={saveBulletin}
@@ -1286,7 +1288,7 @@ export function GroupView({ group }: { group: Group }) {
             title={t("room.bulletin.title")}
           >
             <Pin size={12} className="shrink-0 text-ink-secondary" />
-            <span className={cn("truncate text-[12.5px]", group.bulletin ? "text-ink-secondary" : "text-ink-tertiary")}>
+            <span dir="auto" className={cn("truncate text-[12.5px]", group.bulletin ? "text-ink-secondary" : "text-ink-tertiary")}>
               {group.bulletin.split("\n")[0] || (remoteClient ? t("room.bulletin.none") : t("room.bulletin.add"))}
             </span>
           </button>
@@ -1318,7 +1320,7 @@ export function GroupView({ group }: { group: Group }) {
                 title={t("chat.pinnedJump")}
               >
                 <span className="shrink-0 text-[11.5px] font-medium text-accent">{sender}</span>
-                <span className="truncate text-[12.5px] text-ink-secondary">{text}</span>
+                <span dir="auto" className="truncate text-[12.5px] text-ink-secondary">{text}</span>
               </button>
               <button
                 onClick={() => dispatch({ type: "patchGroup", groupId: group.id, patch: { pinnedMessageId: "" } })}
