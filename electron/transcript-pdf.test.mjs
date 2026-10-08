@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
-import { renderTranscriptPdf, transcriptPdfSaveName, writeTranscriptPdf } from "./transcript-pdf.mjs";
+import {
+  TRANSCRIPT_PDF_CSP,
+  TRANSCRIPT_PDF_PARTITION,
+  renderTranscriptPdf,
+  transcriptPdfSaveName,
+  writeTranscriptPdf,
+} from "./transcript-pdf.mjs";
 
 describe("writeTranscriptPdf", () => {
   it("asks for a pdf path, prints, and writes the bytes", async () => {
@@ -43,31 +46,66 @@ describe("writeTranscriptPdf", () => {
 });
 
 describe("renderTranscriptPdf", () => {
-  it("prints with javascript off and removes the temporary file", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "omb-pdf-test-"));
-    let loaded = "";
+  it("prints in a non-persistent session that blocks the network", async () => {
+    const listeners = {};
+    let beforeRequest;
+    let headersReceived;
     const win = {
       destroyed: false,
-      webContents: { printToPDF: vi.fn(async () => Buffer.from("%PDF-1.4")) },
-      loadFile: vi.fn(async (file) => { loaded = readFileSync(file, "utf8"); }),
+      loadURL: vi.fn(async () => {}),
+      webContents: {
+        session: {
+          webRequest: {
+            onBeforeRequest: (cb) => { beforeRequest = cb; },
+            onHeadersReceived: (cb) => { headersReceived = cb; },
+          },
+        },
+        printToPDF: vi.fn(async () => Buffer.from("%PDF-1.4")),
+        setWindowOpenHandler: vi.fn(),
+        on: (event, cb) => { listeners[event] = cb; },
+      },
       isDestroyed: () => win.destroyed,
       destroy: () => { win.destroyed = true; },
     };
+    let options;
     const pdf = await renderTranscriptPdf("<html>notes</html>", class {
-      constructor(options) {
-        expect(options.show).toBe(false);
-        expect(options.webPreferences.javascript).toBe(false);
-        expect(options.webPreferences.sandbox).toBe(true);
+      constructor(next) {
+        options = next;
         Object.assign(this, win);
       }
-    }, {
-      mkdtempSync: () => dir,
-      writeFileSync,
-      rmSync,
     });
+    expect(options.show).toBe(false);
+    expect(options.webPreferences.javascript).toBe(false);
+    expect(options.webPreferences.sandbox).toBe(true);
+    expect(options.webPreferences.partition).toBe(TRANSCRIPT_PDF_PARTITION);
+    expect(TRANSCRIPT_PDF_PARTITION.startsWith("persist:")).toBe(false);
+    expect(win.loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/));
+    expect(decodeURIComponent(win.loadURL.mock.calls[0][0].slice("data:text/html;charset=utf-8,".length))).toBe("<html>notes</html>");
+
+    const decision = (url) => new Promise((resolve) => beforeRequest({ url }, resolve));
+    expect(await decision("https://evil.example/a")).toEqual({ cancel: true });
+    expect(await decision("http://127.0.0.1/")).toEqual({ cancel: true });
+    expect(await decision("file:///tmp/transcript.html")).toEqual({ cancel: true });
+    expect(await decision("data:text/html,hi")).toEqual({ cancel: false });
+    expect(await decision("about:blank")).toEqual({ cancel: false });
+
+    const headers = await new Promise((resolve) => headersReceived({ responseHeaders: { "X-Test": ["1"] } }, resolve));
+    expect(headers.responseHeaders["Content-Security-Policy"]).toEqual([TRANSCRIPT_PDF_CSP]);
+    expect(headers.responseHeaders["X-Test"]).toEqual(["1"]);
+    expect(TRANSCRIPT_PDF_CSP).toBe("default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+
+    expect(win.webContents.setWindowOpenHandler.mock.calls[0][0]({ url: "https://evil.example" })).toEqual({ action: "deny" });
+    const navigate = { preventDefault: vi.fn() };
+    listeners["will-navigate"](navigate, "https://evil.example/");
+    expect(navigate.preventDefault).toHaveBeenCalledOnce();
+    const stay = { preventDefault: vi.fn() };
+    listeners["will-navigate"](stay, "about:blank");
+    expect(stay.preventDefault).not.toHaveBeenCalled();
+    const redirect = { preventDefault: vi.fn() };
+    listeners["will-redirect"](redirect, "https://evil.example/next");
+    expect(redirect.preventDefault).toHaveBeenCalledOnce();
+
     expect(pdf.toString()).toBe("%PDF-1.4");
-    expect(loaded).toBe("<html>notes</html>");
     expect(win.destroyed).toBe(true);
-    expect(() => readFileSync(join(dir, "transcript.html"))).toThrow();
   });
 });

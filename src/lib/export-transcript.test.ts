@@ -297,6 +297,7 @@ describe("export-transcript", () => {
     const html = transcriptPdfHtml({ title: "Coder", messages, botName: "Coder", exportedAt: fixedDate, direction: "rtl" });
     expect(transcriptPdfFilename("Coder", fixedDate)).toBe(slugifyTranscriptFilename("Coder", fixedDate).replace(/\.md$/, ".pdf"));
     expect(html).toContain('dir="rtl"');
+    expect(html).toContain("default-src 'none'; style-src 'unsafe-inline'; img-src data:");
     expect(html).toContain("see &lt;script&gt;alert(1)&lt;/script&gt;");
     expect(html).not.toContain("<script>");
     expect(html).toContain("Thread with Coder");

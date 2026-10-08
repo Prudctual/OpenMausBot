@@ -1,11 +1,44 @@
 // Print a transcript to PDF without giving the page a script.
 // The renderer supplies the HTML. It is untrusted: JavaScript stays off,
-// and a script tag is refused before a window is opened.
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
+// and a script tag is refused before a window is opened. The hidden window
+// uses an in-memory session that can only load its own data or about page.
 export const TRANSCRIPT_PDF_MAX_HTML = 5_000_000;
+
+/** In-memory session. A name that starts with persist: would be written to disk. */
+export const TRANSCRIPT_PDF_PARTITION = "omb-transcript-pdf";
+
+export const TRANSCRIPT_PDF_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:";
+
+/** The document itself. Every other scheme, including file and https, is blocked. */
+export function transcriptPdfPageUrl(url) {
+  return typeof url === "string" && (url.startsWith("data:") || url.startsWith("about:"));
+}
+
+export function transcriptPdfDataUrl(html) {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}
+
+/** Cancel network requests, refuse navigation and window.open, and force the CSP. */
+export function guardTranscriptPdfWindow(win) {
+  const contents = win.webContents;
+  contents.session.webRequest.onBeforeRequest((details, callback) => {
+    callback(transcriptPdfPageUrl(details.url) ? { cancel: false } : { cancel: true });
+  });
+  contents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [TRANSCRIPT_PDF_CSP],
+      },
+    });
+  });
+  contents.setWindowOpenHandler(() => ({ action: "deny" }));
+  const blockNavigation = (event, url) => {
+    if (!transcriptPdfPageUrl(url)) event.preventDefault();
+  };
+  contents.on("will-navigate", blockNavigation);
+  contents.on("will-redirect", blockNavigation);
+}
 
 export function transcriptPdfSaveName(filename) {
   const cleaned = String(filename ?? "").replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim().replace(/^\.+/, "").slice(0, 180);
@@ -24,27 +57,22 @@ export async function writeTranscriptPdf({ html, filename, choosePath, printHtml
   return filePath;
 }
 
-export async function renderTranscriptPdf(html, BrowserWindow, io = { mkdtempSync, writeFileSync, rmSync }) {
-  const dir = io.mkdtempSync(join(tmpdir(), "omb-transcript-"));
-  const file = join(dir, "transcript.html");
+export async function renderTranscriptPdf(html, BrowserWindow) {
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      javascript: false,
+      partition: TRANSCRIPT_PDF_PARTITION,
+    },
+  });
   try {
-    io.writeFileSync(file, html, { encoding: "utf8", mode: 0o600 });
-    const win = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        sandbox: true,
-        contextIsolation: true,
-        nodeIntegration: false,
-        javascript: false,
-      },
-    });
-    try {
-      await win.loadFile(file);
-      return await win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true });
-    } finally {
-      if (typeof win.isDestroyed !== "function" || !win.isDestroyed()) win.destroy();
-    }
+    guardTranscriptPdfWindow(win);
+    await win.loadURL(transcriptPdfDataUrl(html));
+    return await win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true });
   } finally {
-    io.rmSync(dir, { recursive: true, force: true });
+    if (typeof win.isDestroyed !== "function" || !win.isDestroyed()) win.destroy();
   }
 }

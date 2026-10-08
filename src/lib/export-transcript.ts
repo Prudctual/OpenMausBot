@@ -193,6 +193,7 @@ export function transcriptPdfHtml(options: ExportTranscriptOptions & { direction
     `<html dir="${direction}">`,
     "<head>",
     '<meta charset="utf-8">',
+    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">`,
     `<title>${escapeHtml(options.title.trim() || "Conversation")}</title>`,
     "<style>",
     "body { font: 13px/1.45 system-ui, sans-serif; margin: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }",
