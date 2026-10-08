@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ensureDirs, NATIVE_DIR } from "../config.ts";
 import type { ProviderInstance } from "../contracts.ts";
 import { recordEvents, type EventRecorder } from "../testing/events.ts";
+import { LONG_RETRY_MESSAGE, QUOTA_EXHAUSTED_MESSAGE } from "../../shared/provider-limits.ts";
 import { GrokDriver } from "./grok.ts";
 
 const SSE_BODY = (text: string) =>
@@ -27,7 +28,7 @@ describe("GrokDriver turns (fake fetch)", () => {
   let recorder: EventRecorder;
   let previousFetch: typeof globalThis.fetch;
   /** Script of responses/errors consumed in order; empty = succeed with text. */
-  let script: Array<{ status?: number; sse?: string }> = [];
+  let script: Array<{ status?: number; sse?: string; headers?: Record<string, string>; body?: string }> = [];
   let calls = 0;
   let requestedModels: string[] = [];
 
@@ -55,7 +56,7 @@ describe("GrokDriver turns (fake fetch)", () => {
       const step = script.shift();
       calls++;
       if (!step || step.sse !== undefined) return sseResponse(step?.sse ?? SSE_BODY("done from fake grok"));
-      return new Response(`HTTP ${step.status} body`, { status: step.status });
+      return new Response(step.body ?? `HTTP ${step.status} body`, { status: step.status, headers: step.headers });
     }) as typeof fetch;
   });
 
@@ -143,6 +144,36 @@ describe("GrokDriver turns (fake fetch)", () => {
     expect(calls).toBe(3);
     expect(recorder.events.at(-1)).toMatchObject({ type: "turn.completed", ok: true, turnId });
   }, 20_000);
+
+  it("waits the Retry-After delay instead of the fixed backoff", async () => {
+    script = [{ status: 429, headers: { "retry-after": "5" } }];
+    await create();
+    await instance.adapter.sendTurn({ threadId: "t-retry-after", text: "go" });
+    await recorder.until((e) => e.type === "turn.completed" && e.ok === true);
+    const retries = recorder.events.filter((e) => e.type === "turn.retrying");
+    expect(retries).toEqual([expect.objectContaining({ attempt: 1, delayMs: 5_000, reason: "rate_limited" })]);
+    expect(calls).toBe(2);
+  });
+
+  it("stops without retrying when Retry-After is longer than 30 seconds", async () => {
+    script = [{ status: 429, headers: { "retry-after": "120" } }, { sse: SSE_BODY("should not run") }];
+    await create();
+    await instance.adapter.sendTurn({ threadId: "t-retry-after-long", text: "go" });
+    await recorder.until((e) => e.type === "turn.completed" && e.ok === false);
+    expect(recorder.events.some((e) => e.type === "turn.retrying")).toBe(false);
+    expect(recorder.events.find((e) => e.type === "runtime.error")).toMatchObject({ message: LONG_RETRY_MESSAGE });
+    expect(calls).toBe(1);
+  });
+
+  it("fails a used-up credit balance once, with a clear sentence", async () => {
+    script = [{ status: 429, body: "insufficient credits" }, { sse: SSE_BODY("should not run") }];
+    await create();
+    await instance.adapter.sendTurn({ threadId: "t-credits", text: "go" });
+    await recorder.until((e) => e.type === "turn.completed" && e.ok === false);
+    expect(recorder.events.some((e) => e.type === "turn.retrying")).toBe(false);
+    expect(recorder.events.find((e) => e.type === "runtime.error")).toMatchObject({ message: QUOTA_EXHAUSTED_MESSAGE });
+    expect(calls).toBe(1);
+  });
 
   it("stops at the attempt cap and settles as failed", async () => {
     script = [{ status: 500 }, { status: 500 }, { status: 500 }];

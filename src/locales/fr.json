@@ -285,6 +285,8 @@
   "chat.retry": "Réessayer",
   "chat.error.signedOut": "{name} n’est pas encore connecté. Connectez-vous ci-dessous, puis renvoyez votre message.",
   "chat.error.details": "Détails",
+  "chat.error.longRetry": "Le fournisseur a demandé une attente de plus de 30 secondes, donc ce tour s’est arrêté. C’est en général une limite quotidienne ou de facturation. Attendez la réinitialisation, ou choisissez un autre modèle.",
+  "chat.error.quotaExhausted": "Ce compte n’a plus de crédits ou son quota est épuisé. Attendez la réinitialisation, ou choisissez un autre modèle.",
   "chat.send": "Envoyer",
   "chat.editMessage": "Modifier le message",
   "chat.reply": "Répondre",

@@ -565,6 +565,8 @@
   "chat.retry": "重试",
   "chat.error.signedOut": "{name} 尚未登录。请在下方登录，然后重新发送你的消息。",
   "chat.error.details": "详情",
+  "chat.error.longRetry": "提供方要求等待超过 30 秒，因此这一轮已停止。这通常是每日限额或账单限额。请等待重置，或改用其他模型。",
+  "chat.error.quotaExhausted": "此账户的额度已用完或余额不足。请等待重置，或改用其他模型。",
   "chat.send": "发送",
   "chat.editMessage": "编辑消息",
   "chat.reply": "回复",

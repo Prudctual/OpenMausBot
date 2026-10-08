@@ -618,7 +618,7 @@ process.stdin.on("data", (chunk) => {
             out({
               jsonrpc: "2.0",
               id: msg.id,
-              error: { code: -32603, message: "provider returned 503: upstream capacity exceeded" },
+              error: { code: -32603, message: process.env.FAKE_CODEX_FAIL_TEXT ?? "provider returned 503: upstream capacity exceeded" },
             });
             break;
           }

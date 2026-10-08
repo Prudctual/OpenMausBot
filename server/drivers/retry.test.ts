@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { BACKOFF_BASE_MS, RETRY_MAX_ATTEMPTS, classifyError, computeBackoff } from "./retry.ts";
+import { LONG_RETRY_MESSAGE, QUOTA_EXHAUSTED_MESSAGE } from "../../shared/provider-limits.ts";
+import { BACKOFF_BASE_MS, RETRY_MAX_ATTEMPTS, classifyError, computeBackoff, parseRetryAfter, planRetry, quotaStopMessage } from "./retry.ts";
 
 describe("classifyError", () => {
   it("does not retry a provider safety block even inside a 503 or rate-limit error", () => {
@@ -126,5 +127,77 @@ describe("classifyError — usage limits", () => {
     ]) {
       expect(classifyError({ text }), text).toEqual({ transient: false, reason: "quota" });
     }
+  });
+
+  it("treats a used-up daily or credit quota as terminal even inside a 429", () => {
+    for (const text of [
+      "xAI HTTP 429: insufficient credits",
+      "insufficient account balance",
+      "prepaid credits depleted",
+      "spend cap reached",
+      "daily limit exceeded",
+      "Your credits balance is too low",
+    ]) {
+      expect(classifyError({ text }), text).toEqual({ transient: false, reason: "quota" });
+    }
+    expect(classifyError({ text: "HTTP 429: RESOURCE_EXHAUSTED" })).toEqual({
+      transient: true,
+      reason: "rate_limited",
+    });
+  });
+});
+
+describe("planRetry", () => {
+  const now = Date.parse("Wed, 21 Oct 2015 07:28:00 GMT");
+
+  it("keeps the fixed schedule when no usable Retry-After is present", () => {
+    const random = () => 0.5;
+    const text = "HTTP 429: rate limit reached; retry after 1s";
+    expect(planRetry({ attempt: 0, text, random })).toEqual({ stop: false, delayMs: computeBackoff(0, random) });
+    expect(planRetry({ attempt: 1, text: "Retry-After: soon", random })).toEqual({
+      stop: false,
+      delayMs: computeBackoff(1, random),
+    });
+    expect(classifyError({ text })).toEqual({ transient: true, reason: "rate_limited" });
+  });
+
+  it("waits the delay-seconds or HTTP date the server asked for, without jitter", () => {
+    expect(parseRetryAfter("5", now)).toBe(5_000);
+    expect(planRetry({ attempt: 0, text: "HTTP 429: slow down\nRetry-After: 5", random: () => 0, now })).toEqual({
+      stop: false,
+      delayMs: 5_000,
+    });
+    expect(parseRetryAfter("Wed, 21 Oct 2015 07:28:30 GMT", now)).toBe(30_000);
+    expect(planRetry({ attempt: 2, text: "503 Retry-After: Wed, 21 Oct 2015 07:28:30 GMT", random: () => 0, now })).toEqual({
+      stop: false,
+      delayMs: 30_000,
+    });
+    expect(parseRetryAfter("Wed, 21 Oct 2015 07:27:00 GMT", now)).toBe(0);
+    const error = new Error("HTTP 503: busy");
+    (error as Error & { retryAfter?: string }).retryAfter = "4";
+    expect(planRetry({ attempt: 0, error, random: () => 0 })).toEqual({ stop: false, delayMs: 4_000 });
+  });
+
+  it("stops when the requested wait is longer than 30 seconds", () => {
+    expect(planRetry({ attempt: 0, text: "HTTP 429: Retry-After: 31", now })).toEqual({
+      stop: true,
+      message: LONG_RETRY_MESSAGE,
+    });
+    expect(planRetry({ attempt: 0, text: "Retry-After: Wed, 21 Oct 2015 07:28:31 GMT", now })).toEqual({
+      stop: true,
+      message: LONG_RETRY_MESSAGE,
+    });
+  });
+});
+
+describe("quotaStopMessage", () => {
+  it("replaces a raw exhausted quota and leaves an actionable sentence alone", () => {
+    expect(quotaStopMessage("xAI HTTP 429: insufficient credits")).toBe(QUOTA_EXHAUSTED_MESSAGE);
+    expect(quotaStopMessage("quota exceeded for this plan")).toBe(QUOTA_EXHAUSTED_MESSAGE);
+    expect(quotaStopMessage("You've hit your usage limit for this session. Try again at 7pm.")).toBeNull();
+    expect(quotaStopMessage("subscription_sharing_usage_limit_exceeded: Your ChatGPT plan usage limit was reached. Manage usage in ChatGPT Settings.")).toBeNull();
+    expect(quotaStopMessage(QUOTA_EXHAUSTED_MESSAGE)).toBeNull();
+    expect(quotaStopMessage(LONG_RETRY_MESSAGE)).toBeNull();
+    expect(quotaStopMessage("HTTP 429: too many requests")).toBeNull();
   });
 });
