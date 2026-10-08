@@ -397,15 +397,20 @@ Set `OMB_WEBHOOK_PORT` to choose another port. A webhook secret is shown once wh
 or rotated. Bearer authentication is recommended so the secret stays out of request URLs and most access
 logs; a single capability URL remains available for senders that cannot configure headers. The receiver
 exposes only `/health` and secret `/hooks/...` endpoints; it never exposes the app's broader API.
-OpenMausBot must remain running to accept a delivery. For public internet delivery, proxy only this
-dedicated receiver through a hosted relay or a tool such as Tailscale Funnel.
+OpenMausBot must remain running to accept a delivery. `serve --domain`, a fleet
+workspace, and `serve --tunnel` publish `/hooks` on the public address, and the
+copied webhook URL uses it. A desktop that is not started that way still listens
+only on loopback, so code on this machine can post immediately and a sender on
+the internet cannot. Tailscale and a proxy you run yourself still have to
+forward `/hooks/*` to the webhook port. Set `OMB_WEBHOOK_PUBLIC_URL` when the
+address senders should use is not the app's own.
 
 ## Status
 
 Early but real — the loop works end to end: message → agent → streamed reply → tools → approvals →
 computer use. macOS, Windows, and Ubuntu 24.04 x64 have released builds; Ubuntu remains a beta with the
-capability limits above. Rough edges to expect: hosted/mobile connectivity is still being built, and webhook
-triggers currently use the local receiver rather than an always-on hosted relay.
+capability limits above. Rough edges to expect: hosted/mobile connectivity is still being built, and a
+desktop webhook stays on the local receiver unless `serve --domain`, fleet, or `serve --tunnel` is publishing it.
 Hosted voice needs an ElevenLabs, Fish Audio, or xAI key; built-in Mac and local Chatterbox voices need no cloud key. Calls are macOS-only for now (they ride the same on-device dictation as
 the composer mic) — see [`docs/voice-mode.md`](docs/voice-mode.md) for the design and the known gaps.
 
