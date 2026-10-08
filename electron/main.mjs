@@ -11,6 +11,7 @@ import { finishSpeech, startSpeech, stopSpeech } from "./speech.mjs";
 import { openBlankTerminal } from "./terminal-launch.mjs";
 import { pasteMenuItem } from "./paste-menu-item.mjs";
 import { attachUpdaterWindow, startUpdater, registerUpdaterIpc, sendUpdaterState } from "./updater.mjs";
+import { desktopName, isPlusBuild, productName } from "./plus-build.mjs";
 import {
   buildDiagnosticsReport,
   diagnosticsFileName,
@@ -112,7 +113,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEV_URL = process.env.ELECTRON_START_URL ?? "http://127.0.0.1:5199";
 const DEFAULT_COMPOSIO_BROKER_URL = "https://openmausbot-composio.milindsoni201.workers.dev";
 let SERVER_PORT = 8799;
-const APP_ICON = path.join(__dirname, "resources/app-icon.png");
+const APP_ICON = path.join(__dirname, "resources", isPlusBuild() ? "app-icon-plus.png" : "app-icon.png");
 let desktopViewerWindow = null;
 let desktopViewerOwner = null;
 let desktopViewerContextId = null;
@@ -218,14 +219,14 @@ function applyUnreadBadge(win = mainWindow) {
 // intercepting input. This app is not graphics-heavy, so reliability wins.
 if (process.platform === "linux") {
   app.disableHardwareAcceleration();
-  app.setDesktopName("com.openmausbot.app.desktop");
+  app.setDesktopName(desktopName());
 }
 
 // One instance per user: without this lock a second launch forks a second
 // harness server on a fallback port and splits data dirs in two. The loser
 // exits before any child or window exists; the winner surfaces itself.
 if (!app.requestSingleInstanceLock()) {
-  console.log("[desktop] OpenMausBot is already running — focusing that window");
+  console.log(`[desktop] ${productName()} is already running — focusing that window`);
   process.exit(0);
 }
 
@@ -1436,6 +1437,7 @@ async function startServerOn(port) {
     // owner; fallback-port children must not race to replace the parent lease.
     ...desktopDataDirLease.utilityServerLeaseEnvironment(),
     OMB_DATA_DIR: desktopDataDir(),
+    ...(isPlusBuild() ? { OMB_PLUS: "1" } : {}),
     // A packaged utility child must never fall back to a descriptor inherited
     // from the launching shell. It starts fail-closed until this exact main
     // process sends the private in-memory connection after spawn.
@@ -3556,7 +3558,7 @@ app.whenReady().then(async () => {
       });
     } catch (error) {
       dialog.showErrorBox(
-        "OpenMausBot could not start safely",
+        `${productName()} could not start safely`,
         error?.message ?? "Another process is using this OpenMausBot data folder.",
       );
       app.quit();
@@ -3564,7 +3566,9 @@ app.whenReady().then(async () => {
     }
   }
   if (app.isPackaged) {
-    app.setAsDefaultProtocolClient("openmausbot");
+    // Plus keeps the official app's openmausbot:// handlers. Registering the
+    // same scheme would make Launch Services offer this build in their place.
+    if (!isPlusBuild()) app.setAsDefaultProtocolClient("openmausbot");
     // Chromium adds this capability below JavaScript, so renderer requests
     // can mutate the local harness while a Full-access shell using curl
     // cannot impersonate the person operating the desktop app.

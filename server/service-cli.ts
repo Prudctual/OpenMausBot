@@ -4,7 +4,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 
-import { currentUser, launchdPlist, servicePlan, systemdUnit, unstableInstallWarning } from "./service-unit.ts";
+import { currentUser, launchdPlist, servicePlan, systemdUnit, systemdUnitName, unstableInstallWarning } from "./service-unit.ts";
 
 export interface ServiceInstallInput {
   action: "install" | "uninstall";
@@ -74,7 +74,8 @@ export function runServiceCommand(input: ServiceInstallInput, io: ServiceIo): nu
   for (const line of plan.activate) io.log(`  ${line}`);
   io.log("");
   if (input.domain && platform === "linux") io.log("the unit grants Caddy the capability for ports 80 and 443, so no setcap is needed under the service");
-  io.log(`logs: ${platform === "darwin" ? `${input.dataDir}/logs/service.log` : "journalctl -u openmausbot -f"}`);
-  io.log(`change options later by running \`openmausbot service install\` again with the new ones, then: ${platform === "darwin" ? plan.activate[1] : "sudo systemctl daemon-reload && sudo systemctl restart openmausbot"}`);
+  const unit = systemdUnitName().replace(/\.service$/, "");
+  io.log(`logs: ${platform === "darwin" ? `${input.dataDir}/logs/service.log` : `journalctl -u ${unit} -f`}`);
+  io.log(`change options later by running \`openmausbot service install\` again with the new ones, then: ${platform === "darwin" ? plan.activate[1] : `sudo systemctl daemon-reload && sudo systemctl restart ${unit}`}`);
   return 0;
 }

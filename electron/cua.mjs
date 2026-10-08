@@ -41,13 +41,14 @@ const {
   stageAppImageCuaBundle,
 } = require("./cua-linux-bundle.cjs");
 const { linuxLocalControlSupport } = require("./capabilities.cjs");
+const { hostBundleId } = require("./plus-build.cjs");
 
 const INSTALLED_DRIVER = "/Applications/CuaDriver.app/Contents/MacOS/cua-driver";
 const STANDALONE_SOCKET = path.join(
   app.getPath("home"),
   "Library/Caches/cua-driver/cua-driver.sock",
 );
-const HOST_BUNDLE_ID = "com.openmausbot.app";
+const HOST_BUNDLE_ID = hostBundleId();
 const CUA_ENV = { CUA_DRIVER_RS_TELEMETRY_ENABLED: "0" };
 const execFileAsync = promisify(execFile);
 process.env.CUA_DRIVER_RS_TELEMETRY_ENABLED ??= "0";

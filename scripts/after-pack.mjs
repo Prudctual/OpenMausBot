@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { chmod, lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { LICENSE_FILES } from "./cua-linux-release.mjs";
@@ -106,16 +107,39 @@ async function thinMacPlatformTools(resources, arch) {
   }
 }
 
+// The speech helper is built universal so one build can be copied into both
+// apps. Plus keeps only this image's slice. The official package stays
+// universal; release.yml checks both arches.
+async function thinPlusSpeechHelper(resources, arch) {
+  if (process.env.OMB_PLUS !== "1") return;
+  const binary = path.join(resources, "OpenMausBot Speech.app", "Contents", "MacOS", "speech-helper");
+  let macho = false;
+  try {
+    macho = await isMachO(binary);
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw error;
+  }
+  if (!macho) return;
+  if (!LIPO_ARCH[arch]) throw new Error("Unsupported macOS package architecture for the speech helper");
+  await writeThinMachO(binary, binary, LIPO_ARCH[arch]);
+}
+
+function resourcesDir(context) {
+  const fromPackager = context.packager?.getResourcesDir?.(context.appOutDir);
+  if (fromPackager) return fromPackager;
+  if (context.electronPlatformName !== "darwin") return path.join(context.appOutDir, "resources");
+  const plus = path.join(context.appOutDir, "OpenMausBot Plus.app", "Contents", "Resources");
+  const official = path.join(context.appOutDir, "OpenMausBot.app", "Contents", "Resources");
+  return existsSync(plus) ? plus : official;
+}
+
 // electron-builder normalizes copied resource directories to 0775. That is
 // unsafe for a root-owned executable path after DEB/AppImage installation, so
 // repair and revalidate the exact tree after resources are copied and before
 // either artifact target is assembled.
 export default async function afterPack(context) {
-  const resources = context.packager?.getResourcesDir?.(context.appOutDir) ?? (
-    context.electronPlatformName === "darwin"
-      ? path.join(context.appOutDir, "OpenMausBot.app", "Contents", "Resources")
-      : path.join(context.appOutDir, "resources")
-  );
+  const resources = resourcesDir(context);
   await validateCloudflared(resources, context.electronPlatformName, Boolean(context.packager));
   const browserRoot = path.join(resources, "browser-engine");
   const hasBrowser = await lstat(browserRoot).then(() => true, (error) => {
@@ -130,7 +154,10 @@ export default async function afterPack(context) {
     await verifyBrowserBundle(browserRoot, `${context.electronPlatformName}-${arch}`);
   }
   await validateDuckdb(resources, context.electronPlatformName, arch, Boolean(context.packager));
-  if (context.electronPlatformName === "darwin") await thinMacPlatformTools(resources, arch);
+  if (context.electronPlatformName === "darwin") {
+    await thinMacPlatformTools(resources, arch);
+    await thinPlusSpeechHelper(resources, arch);
+  }
 
   if (context.electronPlatformName !== "linux") return;
 

@@ -5,6 +5,8 @@
 // environment is just {id, name, origin}. The session credential is the
 // HttpOnly cookie the /pair page set for that origin, held by Chromium's
 // cookie jar, never by this file.
+const { productName } = require("./plus-build.cjs");
+
 const LOCAL_ID = "local";
 const MAX_NAME = 60;
 
@@ -74,9 +76,10 @@ function workspaceSummary(state) {
 
 /** Native identity must not depend on a hosted renderer's version/title. */
 function workspaceWindowTitle(state, companion) {
-  if (companion) return `OpenMausBot — Connected to: ${companion.serverName} (${new URL(companion.endpoint).host})`;
+  const name = productName();
+  if (companion) return `${name} — Connected to: ${companion.serverName} (${new URL(companion.endpoint).host})`;
   const active = activeEnvironment(state);
-  return active ? `OpenMausBot — Hosted: ${active.name} (${new URL(active.origin).host})` : "OpenMausBot";
+  return active ? `${name} — Hosted: ${active.name} (${new URL(active.origin).host})` : name;
 }
 
 /** Renderer navigation stays in the selected workspace. Switching is a main
