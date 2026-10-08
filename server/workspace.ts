@@ -525,7 +525,7 @@ export const MEMORY_LOG_DIR = "log";
 const LOG_FILE_NAME = /^\d{4}-\d{2}-\d{2}\.md$/;
 
 export type MemoryLogResult =
-  | { ok: true; file: string; line: string }
+  | { ok: true; file: string; line: string; before: string; after: string }
   | { ok: false; code: "invalid"; error: string };
 
 /** Append one timestamped line to today's memory/log/YYYY-MM-DD.md. The
@@ -543,16 +543,17 @@ export function appendMemoryLog(botId: string, text: string, opts: MemoryUpdateO
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = `${memoryDate(now)}.md`;
   const path = join(dir, file);
-  let current = "";
+  let before = "";
   try {
-    current = readMemoryText(path);
+    before = readMemoryText(path);
   } catch {
     // first line of the day
   }
-  writeFileAtomic(path, `${current}${current && !current.endsWith("\n") ? "\n" : ""}${line}\n`, { mode: 0o600 });
+  const after = `${before}${before && !before.endsWith("\n") ? "\n" : ""}${line}\n`;
+  writeFileAtomic(path, after, { mode: 0o600 });
   const relativePath = `memory/${MEMORY_LOG_DIR}/${file}`;
   indexWrittenMemoryFile(botId, relativePath);
-  return { ok: true, file: relativePath, line };
+  return { ok: true, file: relativePath, line, before, after };
 }
 
 /** Write one whole day's log — a backup import restoring it — through the

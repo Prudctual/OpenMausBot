@@ -308,6 +308,19 @@ function advanceBaseline(botId: string, path: string, after: string | null): voi
   else baseline.set(path, after);
 }
 
+/** Move one file's baseline from `before` to `after` only when it still
+ * holds `before`. The harness calls this after appending the daily-log
+ * line, which lands after the turn's diff: the next turn would otherwise
+ * record that line as a change made outside the app, and each row would
+ * keep the whole day's log. A baseline that has already moved is left
+ * alone, so a real edit is not hidden. A bot with no baseline yet is left
+ * alone too — the next turn's first sighting of a new file is not a change. */
+export function advanceMemoryBaseline(botId: string, path: string, before: string, after: string): void {
+  const baseline = baselines.get(botId);
+  if (!baseline || baseline.get(path) !== before) return;
+  baseline.set(path, after);
+}
+
 /** Builds and queues one row. Never throws: hashing and diffing are pure,
  * and the append is queued behind a catch. Returns the row so a route can
  * answer with it. */

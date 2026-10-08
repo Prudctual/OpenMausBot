@@ -383,6 +383,7 @@ import {
 } from "./workspace.ts";
 import { listMemoryTopics, memoryDate, readMemoryFile, readMemoryTopic, writeMemoryFile, writeMemoryTopic } from "./workspace.ts";
 import {
+  advanceMemoryBaseline,
   beginMemoryTurn,
   endMemoryTurn,
   flushAllMemoryJournals,
@@ -6397,13 +6398,20 @@ bus.subscribe((event: RuntimeEvent) => {
     // On a Cloud home the log feeds recall in the owner's turns: only the
     // owner's own conversations leave a line.
     if (CLOUD_HOME && (room || !cloudOwnerOnlyThread(event.threadId))) return;
-    const writeLine = () => appendMemoryLog(bot.id, line, {
-      source: memorySourceLabel({
-        room,
-        task: store.taskByThread(bot.id, event.threadId),
-        threadId: event.threadId,
-      }),
-    });
+    const writeLine = () => {
+      const written = appendMemoryLog(bot.id, line, {
+        source: memorySourceLabel({
+          room,
+          task: store.taskByThread(bot.id, event.threadId),
+          threadId: event.threadId,
+        }),
+      });
+      // The line lands after the turn diff. Advance this file's baseline
+      // only while it still matches the text the append replaced, so the
+      // next turn does not record the harness's own line as an outside edit.
+      if (written.ok) advanceMemoryBaseline(bot.id, written.file, written.before, written.after);
+      return written;
+    };
     if (lendingMemory) lendingMemory.trustedWrite(bot.id, writeLine); else writeLine();
   } catch {
     // a missing note never fails a turn
