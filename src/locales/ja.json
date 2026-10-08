@@ -1475,5 +1475,7 @@
   "place.view.ccNew.short": "準備完了",
   "place.view.ccAtOnce.short": "使用中",
   "place.view.localUnavailable.short": "準備できていません",
-  "place.view.autoTeam.short": "共有"
+  "place.view.autoTeam.short": "共有",
+  "task.filter.unread": "未読のみ",
+  "task.filter.archived": "アーカイブ"
 }

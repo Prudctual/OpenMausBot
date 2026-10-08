@@ -1473,5 +1473,7 @@
   "place.view.ccNew.short": "Listo",
   "place.view.ccAtOnce.short": "En uso",
   "place.view.localUnavailable.short": "No está listo",
-  "place.view.autoTeam.short": "Compartido"
+  "place.view.autoTeam.short": "Compartido",
+  "task.filter.unread": "Solo no leídos",
+  "task.filter.archived": "Archivados"
 }

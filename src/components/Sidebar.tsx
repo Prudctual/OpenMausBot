@@ -63,7 +63,7 @@ import { BotPickerList } from "./BotPickerList";
 import { BotProjectDialog, FolderActions, FolderIcon, navigateThreadMenu } from "./BotProjects";
 import { draggedFolder, FOLDER_DRAG_TYPE, moveFolder, placeFolder } from "@/lib/folder-order";
 import { folderUnreadThreadIds, markFolderRead } from "@/lib/folder-read";
-import { orderedThreadList, SidebarThreadRow, stampClock, threadRecency, useRelativeNow, useSnoozeExpiry, visibleSidebarThreads } from "./SidebarThreadRow";
+import { orderedThreadList, SidebarThreadFilters, SidebarThreadRow, stampClock, threadRecency, useRelativeNow, useSnoozeExpiry, visibleSidebarThreads, type SidebarThreadView } from "./SidebarThreadRow";
 import {
   loadCollapsedSections,
   loadSectionOrder,
@@ -345,13 +345,14 @@ export function GroupThreadList({ group, selected, density = "comfortable", quer
   const { state, dispatch } = useStore();
   const now = useRelativeNow();
   const [showAll, setShowAll] = useState(false);
+  const [threadView, setThreadView] = useState<SidebarThreadView>({});
   const busy = Boolean(group.working || group.busyBotId);
   const waiting = state.bots.find((bot) => bot.id === group.busyBotId)?.activity === "waiting-on-you";
   const tasks = (group.tasks ?? [{ threadId: group.threadId, title: group.name, createdAt: group.createdAt }]).map((task) => ({
     ...task, busy: task.threadId === group.threadId && busy, unread: task.threadId === group.threadId && group.unread,
     activity: task.threadId === group.threadId && waiting ? "waiting-on-you" as const : undefined,
   }));
-  const visible = orderedThreadList(visibleSidebarThreads(tasks, group.threadId, query, [], showAll));
+  const visible = orderedThreadList(visibleSidebarThreads(tasks, group.threadId, query, [], showAll, threadView));
   useRevealedThreadRow(state.revealThread, selected ? group.threadId : null);
   // One set of row actions per room; they read the room as it is when used.
   const latest = useRef(group);
@@ -370,7 +371,8 @@ export function GroupThreadList({ group, selected, density = "comfortable", quer
   return <div className="mb-2 space-y-0.5" role="group" aria-label={t("task.namedList", { name: group.name })}>
     {visible.map((task) => <SidebarThreadRow key={task.threadId} task={task} ownerId={group.id} current={selected && task.threadId === group.threadId} compact={density === "compact"}
       now={stampClock(threadRecency(task), now)} locale={locale} {...actions} />)}
-    {!query && !showAll && tasks.length > visible.length && <button type="button" onClick={() => setShowAll(true)} className="pl-6 pr-3 py-1.5 text-[11px] text-ink-secondary hover:text-ink">{t("task.showAll", { count: tasks.length })}</button>}
+    {!query && !showAll && !threadView.archived && !threadView.unreadOnly && tasks.length > visible.length && <button type="button" onClick={() => setShowAll(true)} className="pl-6 pr-3 py-1.5 text-[11px] text-ink-secondary hover:text-ink">{t("task.showAll", { count: tasks.length })}</button>}
+    {(tasks.some((task) => task.archivedAt !== undefined || task.unread) || threadView.archived || threadView.unreadOnly) && <SidebarThreadFilters view={threadView} onChange={setThreadView} />}
   </div>;
 }
 
@@ -1017,6 +1019,7 @@ export function BotThreadList({ bot, selected, density, query, pendingQueued, re
   const [folderDrop, setFolderDrop] = useState<{ id: string; place: "before" | "after" } | null>(null);
   const draggingFolder = useRef<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [threadView, setThreadView] = useState<SidebarThreadView>({});
   const [permissionRefresh, setPermissionRefresh] = useState<{ threadId: string; kind: "full" | "local-auto" } | null>(null);
   const currentProjectId = tasks.find((task) => task.threadId === bot.threadId)?.projectId;
   useEffect(() => {
@@ -1029,7 +1032,7 @@ export function BotThreadList({ bot, selected, density, query, pendingQueued, re
   }, [selected, currentProjectId]);
   useSnoozeExpiry(tasks);
   // Pin, then newest update. Search keeps the same order among matches.
-  const visibleTasks = orderedThreadList(visibleSidebarThreads(tasks, bot.threadId, query, projects, showAll));
+  const visibleTasks = orderedThreadList(visibleSidebarThreads(tasks, bot.threadId, query, projects, showAll, threadView));
   // A folder rises with the thread of its that sits highest in that order.
   // An empty index sorts last. Saved order breaks ties, and still governs
   // move up and down.
@@ -1177,7 +1180,8 @@ export function BotThreadList({ bot, selected, density, query, pendingQueued, re
       <span role="status" className="sr-only">{readStatus}</span>
       {projects.length > 0 && ungrouped.length > 0 && <div className="pl-6 pr-3 pb-1 pt-2 text-[10.5px] text-ink-tertiary">{t("task.list")}</div>}
       {ungrouped.map(renderThread)}
-      {!query && !showAll && tasks.length > visibleTasks.length && <button type="button" onClick={() => setShowAll(true)} className="pl-6 pr-3 py-1.5 text-[11px] text-ink-secondary hover:text-ink">{t("task.showAll", { count: tasks.length })}</button>}
+      {!query && !showAll && !threadView.archived && !threadView.unreadOnly && tasks.length > visibleTasks.length && <button type="button" onClick={() => setShowAll(true)} className="pl-6 pr-3 py-1.5 text-[11px] text-ink-secondary hover:text-ink">{t("task.showAll", { count: tasks.length })}</button>}
+      {(tasks.some((task) => task.archivedAt !== undefined || task.unread) || threadView.archived || threadView.unreadOnly) && <SidebarThreadFilters view={threadView} onChange={setThreadView} />}
       <FullAccessWarning
         open={permissionRefresh?.kind === "full"}
         scope="thread"

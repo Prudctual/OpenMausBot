@@ -2424,5 +2424,7 @@
   "place.view.ccNew.short": "就绪",
   "place.view.ccAtOnce.short": "使用中",
   "place.view.localUnavailable.short": "尚未就绪",
-  "place.view.autoTeam.short": "共享"
+  "place.view.autoTeam.short": "共享",
+  "task.filter.unread": "仅未读",
+  "task.filter.archived": "已归档"
 }

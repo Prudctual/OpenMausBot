@@ -149,11 +149,16 @@ const demandsAttention = (task: ThreadRowTask, activeId: string) =>
  * behind — but it is never gone: "show all" and search still list it, a
  * closed thread that becomes busy or unread is back at once, and a pin
  * keeps a closed or archived thread in the list. */
-export function visibleSidebarThreads<T extends ThreadRowTask>(tasks: T[], activeId: string, query = "", folders: BotProject[] = [], showAll = false): T[] {
+export type SidebarThreadView = { archived?: boolean; unreadOnly?: boolean };
+
+export function visibleSidebarThreads<T extends ThreadRowTask>(tasks: T[], activeId: string, query = "", folders: BotProject[] = [], showAll = false, view: SidebarThreadView = {}): T[] {
   const needle = query.trim().toLowerCase();
-  if (needle) {
-    return tasks.filter((task) => task.title.toLowerCase().includes(needle) || folders.some((folder) => folder.id === task.projectId && folder.name.toLowerCase().includes(needle)));
-  }
+  const matches = (task: T) => task.title.toLowerCase().includes(needle) || folders.some((folder) => folder.id === task.projectId && folder.name.toLowerCase().includes(needle));
+  let pool = tasks;
+  if (view.archived) pool = pool.filter((task) => isArchived(task));
+  if (view.unreadOnly) pool = pool.filter((task) => Boolean(task.unread) || task.threadId === activeId);
+  if (view.archived || view.unreadOnly) return orderedThreadList(needle ? pool.filter(matches) : pool);
+  if (needle) return tasks.filter(matches);
   if (showAll) return tasks;
   let open = 0;
   return orderedThreadList(tasks).filter((task) => {
@@ -192,6 +197,22 @@ export function useSnoozeExpiry(tasks: readonly Pick<Task, "snoozedUntil">[]): v
  * timer-free and re-render when this tick moves. Paused while the window is
  * hidden, resynced the moment it becomes visible again, and cleared on
  * unmount — the same shape the computer inventory's refresh uses. */
+export function SidebarThreadFilters({
+  view,
+  onChange,
+}: {
+  view: SidebarThreadView;
+  onChange: (next: SidebarThreadView) => void;
+}) {
+  const button = "rounded px-1.5 py-1 text-[11px] text-ink-secondary hover:text-ink aria-pressed:text-ink";
+  return (
+    <div className="flex flex-wrap gap-1 ps-6 pe-3">
+      <button type="button" aria-pressed={view.unreadOnly === true} className={button} onClick={() => onChange({ ...view, unreadOnly: !view.unreadOnly })}>{t("task.filter.unread")}</button>
+      <button type="button" aria-pressed={view.archived === true} className={button} onClick={() => onChange({ ...view, archived: !view.archived })}>{t("task.filter.archived")}</button>
+    </div>
+  );
+}
+
 export function useRelativeNow(): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

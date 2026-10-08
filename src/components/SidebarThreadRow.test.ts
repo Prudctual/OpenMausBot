@@ -2,7 +2,7 @@ import { createElement, type ComponentProps, type MemoExoticComponent, type Reac
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@/lib/i18n";
-import { formatUpdatedAt, nextSnoozeExpiry, orderedSidebarThreads, orderedThreadList, SidebarThreadRow, stampClock, threadByline, threadOpenerLabel, threadUpdatedLabel, visibleSidebarThreads } from "./SidebarThreadRow";
+import { formatUpdatedAt, nextSnoozeExpiry, orderedSidebarThreads, orderedThreadList, SidebarThreadFilters, SidebarThreadRow, stampClock, threadByline, threadOpenerLabel, threadUpdatedLabel, visibleSidebarThreads } from "./SidebarThreadRow";
 
 type ThreadRowProps = ComponentProps<typeof SidebarThreadRow>;
 
@@ -457,6 +457,16 @@ describe("archived threads", () => {
       { threadId: "1", title: "Put away", archivedAt: 0 },
     ];
     expect(visibleSidebarThreads(rows, "0").map((task) => task.threadId)).toEqual(["0"]);
+    expect(visibleSidebarThreads(rows, "0", "", [], false, { archived: true }).map((task) => task.threadId)).toEqual(["1"]);
+    expect(visibleSidebarThreads([
+      { threadId: "0", title: "Open", unread: true },
+      { threadId: "1", title: "Quiet" },
+      { threadId: "2", title: "Also new", unread: true },
+    ], "1", "", [], false, { unreadOnly: true }).map((task) => task.threadId)).toEqual(["0", "1", "2"]);
+    const filters = renderToStaticMarkup(createElement(SidebarThreadFilters, { view: { unreadOnly: true }, onChange: vi.fn() }));
+    expect(filters).toContain("Only unread");
+    expect(filters).toContain("Archived");
+    expect(filters).toContain('aria-pressed="true"');
     expect(threadByline({ archivedAt: 0 })).toBe("Archived");
     expect(render({ threadId: "1", title: "Put away", archivedAt: 0 })).toContain("Archived");
   });

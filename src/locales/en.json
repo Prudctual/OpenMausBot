@@ -1407,6 +1407,8 @@
   "task.collapseNamed": "Collapse {name} threads",
   "task.expandNamed": "Expand {name} threads",
   "task.showAll": "Show all {count} threads",
+  "task.filter.unread": "Only unread",
+  "task.filter.archived": "Archived",
   "task.archivedList": "Archived ({count})",
   "task.empty": "No threads yet",
   "task.newIn": "New thread in {name}",
