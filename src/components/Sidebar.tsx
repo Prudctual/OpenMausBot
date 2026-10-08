@@ -345,14 +345,13 @@ export function GroupThreadList({ group, selected, density = "comfortable", quer
   const { state, dispatch } = useStore();
   const now = useRelativeNow();
   const [showAll, setShowAll] = useState(false);
-  const [threadView, setThreadView] = useState<SidebarThreadView>({});
   const busy = Boolean(group.working || group.busyBotId);
   const waiting = state.bots.find((bot) => bot.id === group.busyBotId)?.activity === "waiting-on-you";
   const tasks = (group.tasks ?? [{ threadId: group.threadId, title: group.name, createdAt: group.createdAt }]).map((task) => ({
     ...task, busy: task.threadId === group.threadId && busy, unread: task.threadId === group.threadId && group.unread,
     activity: task.threadId === group.threadId && waiting ? "waiting-on-you" as const : undefined,
   }));
-  const visible = orderedThreadList(visibleSidebarThreads(tasks, group.threadId, query, [], showAll, threadView));
+  const visible = orderedThreadList(visibleSidebarThreads(tasks, group.threadId, query, [], showAll));
   useRevealedThreadRow(state.revealThread, selected ? group.threadId : null);
   // One set of row actions per room; they read the room as it is when used.
   const latest = useRef(group);
@@ -371,8 +370,7 @@ export function GroupThreadList({ group, selected, density = "comfortable", quer
   return <div className="mb-2 space-y-0.5" role="group" aria-label={t("task.namedList", { name: group.name })}>
     {visible.map((task) => <SidebarThreadRow key={task.threadId} task={task} ownerId={group.id} current={selected && task.threadId === group.threadId} compact={density === "compact"}
       now={stampClock(threadRecency(task), now)} locale={locale} {...actions} />)}
-    {!query && !showAll && !threadView.archived && !threadView.unreadOnly && tasks.length > visible.length && <button type="button" onClick={() => setShowAll(true)} className="pl-6 pr-3 py-1.5 text-[11px] text-ink-secondary hover:text-ink">{t("task.showAll", { count: tasks.length })}</button>}
-    {(tasks.some((task) => task.archivedAt !== undefined || task.unread) || threadView.archived || threadView.unreadOnly) && <SidebarThreadFilters view={threadView} onChange={setThreadView} />}
+    {!query && !showAll && tasks.length > visible.length && <button type="button" onClick={() => setShowAll(true)} className="pl-6 pr-3 py-1.5 text-[11px] text-ink-secondary hover:text-ink">{t("task.showAll", { count: tasks.length })}</button>}
   </div>;
 }
 
