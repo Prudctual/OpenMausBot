@@ -23,7 +23,7 @@ vi.mock("./DesktopCapabilities", async (importOriginal) => ({
 }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
 
-const { Transcript } = await import("./GroupView");
+const { ProvideRoomRows, Transcript } = await import("./GroupView");
 const { MessageBoundary } = await import("./ChatView");
 
 const lead = { id: "lead", name: "Lead", color: "blue", voice: "verse" } as Bot;
@@ -40,8 +40,11 @@ const text = (id: string, role: "user" | "bot", body: string): Message => ({
 
 const markup = (messages: Message[]) => {
   const group = { ...room, messages };
-  return renderToStaticMarkup(createElement(Transcript, {
-    group, members: [lead], locale: "en", messages, transcript: messages, onReply: () => {},
+  return renderToStaticMarkup(createElement(ProvideRoomRows, {
+    threadId: group.threadId,
+    children: createElement(Transcript, {
+      group, members: [lead], locale: "en", messages, transcript: messages, onReply: () => {},
+    }),
   }));
 };
 

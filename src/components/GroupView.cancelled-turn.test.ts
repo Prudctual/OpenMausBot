@@ -20,7 +20,7 @@ vi.mock("./DesktopCapabilities", async (importOriginal) => ({
 }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
 
-const { Transcript } = await import("./GroupView");
+const { ProvideRoomRows, Transcript } = await import("./GroupView");
 
 const CANCELLED = "The request was cancelled by the client.";
 const room: Group = {
@@ -37,8 +37,11 @@ const cancel: Message = {
 
 let host: HTMLDivElement;
 let root: Root;
-const render = (messages: Message[], group: Group = room) => flushSync(() => root.render(createElement(Transcript, {
-  group, members: [lead], locale: "en", messages, transcript: messages, onReply: () => {},
+const render = (messages: Message[], group: Group = room) => flushSync(() => root.render(createElement(ProvideRoomRows, {
+  threadId: group.threadId,
+  children: createElement(Transcript, {
+    group, members: [lead], locale: "en", messages, transcript: messages, onReply: () => {},
+  }),
 })));
 const retry = () => [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("Retry"));
 

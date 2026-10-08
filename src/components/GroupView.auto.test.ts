@@ -11,7 +11,7 @@ vi.mock("@/state/store", async (original) => ({
 }));
 vi.mock("./DesktopCapabilities", () => ({ useDesktopCapabilities: () => ({}) }));
 
-import { DefaultResponderSelect, RoutedByLine, Transcript } from "./GroupView";
+import { DefaultResponderSelect, ProvideRoomRows, RoutedByLine, Transcript } from "./GroupView";
 
 const members = [
   { id: "maya", name: "Maya" },
@@ -66,9 +66,12 @@ describe("routed-by line", () => {
       ({ id, role: "bot", kind: "text", text: `reply ${id}`, at: 1_000, from: { botId: "theo", name: "Theo", color: "green" }, ...extra });
     const messages = [reply("routed", { routedBy: { provider: "jev", probability: 0.94 } }), reply("plain", { at: 2_000 })];
     vi.stubGlobal("window", {});
-    const markup = renderToStaticMarkup(createElement(Transcript, {
-      group: { ...room({ kind: "auto" }), threadId: "thread", messages } as Group, members, locale: "en",
-      messages, transcript: messages, onReply: () => undefined,
+    const markup = renderToStaticMarkup(createElement(ProvideRoomRows, {
+      threadId: "thread",
+      children: createElement(Transcript, {
+        group: { ...room({ kind: "auto" }), threadId: "thread", messages } as Group, members, locale: "en",
+        messages, transcript: messages, onReply: () => undefined,
+      }),
     }));
     expect(markup.match(/Picked by Jev/g)).toHaveLength(1);
     expect(markup.indexOf("Picked by Jev")).toBeGreaterThan(markup.indexOf("reply routed"));
