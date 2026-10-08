@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { t } from "@/lib/i18n";
 import {
   filterShortcutGroups,
   SHORTCUT_GROUPS,
@@ -45,6 +46,7 @@ describe("keyboard-shortcuts", () => {
     const nav = filterShortcutGroups(SHORTCUT_GROUPS, "palette");
     expect(nav.length).toBe(1);
     expect(nav[0]?.items[0]?.id).toBe("command-palette");
+    expect(t(nav[0]!.items[0]!.description)).toContain("command palette");
 
     const byKey = filterShortcutGroups(SHORTCUT_GROUPS, "Esc", true);
     expect(byKey.some((g) => g.items.some((i) => i.id === "close-panel"))).toBe(true);

@@ -9,6 +9,7 @@ import {
   type CitationAttachment,
 } from "@/lib/citations";
 import { captureCitationSelection, citationTabShortcut } from "@/lib/citations-dom";
+import { t } from "@/lib/i18n";
 
 type Point = { left: number; top: number };
 
@@ -57,7 +58,7 @@ function CitationEditor({
     <div
       ref={ref}
       role="dialog"
-      aria-label="Comment on citation"
+      aria-label={t("citation.commentOnCitation")}
       className="fixed z-50 w-[min(28rem,calc(100vw-1rem))] rounded-xl border border-hairline/50 bg-panel p-3 text-ink shadow-2xl"
       style={point}
       onKeyDown={(event) => {
@@ -77,9 +78,9 @@ function CitationEditor({
         dir="auto"
         value={comment}
         rows={3}
-        aria-label="Comment on selected text"
+        aria-label={t("citation.commentOnSelection")}
         aria-invalid={tooLong || undefined}
-        placeholder="Add an optional comment…"
+        placeholder={t("citation.commentPlaceholder")}
         onChange={(event) => setComment(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -182,7 +183,7 @@ export function CitationSelectionToolbar({
       ref={buttonRef}
       type="button"
       disabled={tooLong}
-      aria-label={tooLong ? "Selection is too long to cite" : "Cite selected text"}
+      aria-label={tooLong ? t("citation.selectionTooLong") : t("citation.citeSelected")}
       onPointerDown={(event) => event.preventDefault()}
       onClick={() => setEditing(true)}
       onKeyDown={(event) => {
@@ -191,7 +192,7 @@ export function CitationSelectionToolbar({
       className="fixed z-50 flex items-center gap-1.5 rounded-full border border-hairline/50 bg-panel px-3 py-1.5 text-[12px] font-medium text-ink shadow-lg disabled:text-danger"
       style={captured.point}
     >
-      <Quote size={13} aria-hidden="true" /> {tooLong ? "Shorten selection" : "Cite"}
+      <Quote size={13} aria-hidden="true" /> {tooLong ? t("citation.shortenSelection") : t("citation.cite")}
     </button>,
     document.body,
   );
@@ -253,12 +254,12 @@ export function CitationBadge({
         <span className="truncate">{citation.quote.replace(/\s+/g, " ")}</span>
       </button>
       {onRemove && (
-        <button type="button" onClick={onRemove} aria-label="Remove citation" className="flex size-5 items-center justify-center rounded-full text-ink-secondary hover:bg-raised hover:text-ink"><X size={11} /></button>
+        <button type="button" onClick={onRemove} aria-label={t("citation.remove")} className="flex size-5 items-center justify-center rounded-full text-ink-secondary hover:bg-raised hover:text-ink"><X size={11} /></button>
       )}
       {open && createPortal(
         <div
           role="dialog"
-          aria-label="Citation details"
+          aria-label={t("citation.details")}
           className="fixed z-50 w-[min(30rem,calc(100vw-1rem))] rounded-xl border border-hairline/50 bg-panel p-3 text-left text-ink shadow-2xl"
           style={point}
           ref={(element) => {

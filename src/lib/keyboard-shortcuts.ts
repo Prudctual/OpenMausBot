@@ -2,13 +2,15 @@
  * Keyboard shortcuts catalog and platform-specific key resolution.
  * Provides structured shortcut groups for navigation, chat, and workspace management.
  */
+import type { LocaleKey } from "@/locales";
+import { t } from "@/lib/i18n";
 
 /** Single keyboard shortcut entry with descriptions and platform-specific keys. */
 export interface ShortcutItem {
   /** Stable identifier for the shortcut. */
   id: string;
-  /** Human-readable explanation of what the shortcut does. */
-  description: string;
+  /** Locale key for what the shortcut does. */
+  description: LocaleKey;
   /** Keys displayed on macOS (e.g. ["⌘", "K"]). */
   macKeys: string[];
   /** Keys displayed on Windows and Linux (e.g. ["Ctrl", "K"]). */
@@ -33,31 +35,31 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
     items: [
       {
         id: "command-palette",
-        description: "Open command palette (switcher & transcript search)",
+        description: "shortcuts.commandPalette",
         macKeys: ["⌘", "K"],
         winKeys: ["Ctrl", "K"],
       },
       {
         id: "new-bot",
-        description: "Create a new bot",
+        description: "shortcuts.newBot",
         macKeys: ["⌘", "N"],
         winKeys: ["Ctrl", "N"],
       },
       {
         id: "jump-bot",
-        description: "Jump to bot 1–9 in the roster",
+        description: "shortcuts.jumpBot",
         macKeys: ["⌘", "1–9"],
         winKeys: ["Ctrl", "1–9"],
       },
       {
         id: "switch-bot",
-        description: "Switch to previous / next bot",
+        description: "shortcuts.switchBot",
         macKeys: ["⌘", "⇧", "[ / ]"],
         winKeys: ["Ctrl", "Shift", "[ / ]"],
       },
       {
         id: "find-conversation",
-        description: "Find in conversation",
+        description: "shortcuts.findConversation",
         macKeys: ["⌘", "F"],
         winKeys: ["Ctrl", "F"],
       },
@@ -68,31 +70,31 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
     items: [
       {
         id: "send-message",
-        description: "Send message",
+        description: "shortcuts.sendMessage",
         macKeys: ["Return"],
         winKeys: ["Enter"],
       },
       {
         id: "new-line",
-        description: "Insert new line without sending",
+        description: "shortcuts.newLine",
         macKeys: ["⇧", "Return"],
         winKeys: ["Shift", "Enter"],
       },
       {
         id: "edit-last-message",
-        description: "Edit last message (when composer is empty)",
+        description: "shortcuts.editLastMessage",
         macKeys: ["↑"],
         winKeys: ["↑"],
       },
       {
         id: "close-panel",
-        description: "Close active drawer, modal, or find bar",
+        description: "shortcuts.closePanel",
         macKeys: ["Esc"],
         winKeys: ["Esc"],
       },
       {
         id: "shortcuts-cheat-sheet",
-        description: "Show keyboard shortcuts cheat sheet",
+        description: "shortcuts.cheatSheet",
         macKeys: ["⌘", "/"],
         winKeys: ["Ctrl", "/"],
       },
@@ -103,13 +105,13 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
     items: [
       {
         id: "live-call-mute",
-        description: "Mute or unmute a Live call",
+        description: "shortcuts.liveCallMute",
         macKeys: ["⌘", "⇧", "M"],
         winKeys: ["Ctrl", "Shift", "M"],
       },
       {
         id: "live-call-hang-up",
-        description: "Hang up a Live call",
+        description: "shortcuts.liveCallHangUp",
         macKeys: ["⌘", "⇧", "H"],
         winKeys: ["Ctrl", "Shift", "H"],
       },
@@ -120,13 +122,13 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
     items: [
       {
         id: "save-bulletin",
-        description: "Save group instruction changes",
+        description: "shortcuts.saveBulletin",
         macKeys: ["⌘", "Return"],
         winKeys: ["Ctrl", "Enter"],
       },
       {
         id: "reorder-section",
-        description: "Reorder sidebar sections (focus a section heading)",
+        description: "shortcuts.reorderSection",
         macKeys: ["⌥", "↑ / ↓"],
         winKeys: ["Alt", "↑ / ↓"],
       },
@@ -164,7 +166,7 @@ export function isMacPlatform(): boolean {
  * Resolve the appropriate key representation for a shortcut item based on the host OS.
  */
 export function shortcutKeysForPlatform(
-  item: ShortcutItem,
+  item: Pick<ShortcutItem, "macKeys" | "winKeys">,
   isMac: boolean = isMacPlatform(),
 ): string[] {
   return isMac ? item.macKeys : item.winKeys;
@@ -186,7 +188,7 @@ export function filterShortcutGroups(
       const filteredItems = group.items.filter((item) => {
         const keys = shortcutKeysForPlatform(item, isMac).join(" ").toLowerCase();
         return (
-          item.description.toLowerCase().includes(normalized) ||
+          t(item.description).toLowerCase().includes(normalized) ||
           group.category.toLowerCase().includes(normalized) ||
           keys.includes(normalized)
         );

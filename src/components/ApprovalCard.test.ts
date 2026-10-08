@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ApprovalCard } from "./ApprovalCard";
+import { ApprovalCard, approvalCardOutcome } from "./ApprovalCard";
 import { pendingApprovals, PendingApprovalPanel, spokenApprovalPrompt, type Pending } from "./PendingApproval";
 import type { Bot, Message } from "@/state/store";
 import { skillRequestBehavior } from "../../shared/skill-request";
@@ -641,5 +641,33 @@ describe("ApprovalCard for a change that applied on its own", () => {
     const confirmed = routineCard(createRoutineOperation, { name: "Backlog review" });
     confirmed.card = { ...confirmed.card!, autoApplied: undefined, options: ["Confirm", "Cancel"] };
     expect(render(confirmed)).toContain("Routine scheduled");
+  });
+});
+
+describe("ApprovalCard team setup", () => {
+  const card = {
+    title: "Team",
+    subtitle: "Apply the reviewed setup",
+    options: ["Allow", "Cancel"],
+    answered: "allow" as const,
+    teamSetupRequest: {
+      version: 1 as const,
+      requestId: "team",
+      botId: "bot-1",
+      threadId: "thread-1",
+      reason: "asked",
+      createdAt: 1,
+      requesterRevision: "1",
+      operations: [],
+      newTeams: [],
+    },
+  };
+
+  it("names a deleted bot and an applied team setup", () => {
+    expect(approvalCardOutcome({
+      ...card,
+      teamSetupRequest: { ...card.teamSetupRequest, deletion: { botId: "bot-2", name: "N", expectedRevision: "1" } },
+    })).toBe("Bot deleted");
+    expect(approvalCardOutcome(card)).toBe("Team setup applied");
   });
 });
