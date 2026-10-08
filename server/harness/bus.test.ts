@@ -1,7 +1,7 @@
 // The bus is the seam every client depends on: events must arrive
 // stamped with their instanceId, cross-driver leaks must be dropped, and
 // neither logging nor a broken listener may take down the stream.
-import { appendFileSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -48,6 +48,7 @@ describe("EventBus", () => {
     emit(testEvent());
     expect(seen).toHaveLength(1);
     expect(seen[0].providerInstanceId).toBe("inst-1");
+    await bus.flush();
   });
 
   it("drops events claiming a different driver kind (cross-driver invariant)", async () => {
@@ -61,9 +62,10 @@ describe("EventBus", () => {
     expect(seen).toHaveLength(0);
   });
 
-  it("tees every published event to the per-thread NDJSON log", () => {
+  it("tees every published event to the per-thread NDJSON log", async () => {
     const bus = new EventBus();
     bus.publish(testEvent({ threadId: "log-me" }));
+    await bus.flush();
 
     const logged = readFileSync(join(EVENTS_DIR, "log-me.ndjson"), "utf8")
       .trim()
@@ -73,7 +75,7 @@ describe("EventBus", () => {
     expect(logged[0].type).toBe("turn.started");
   });
 
-  it("redacts credential-shaped content before writing the NDJSON log", () => {
+  it("redacts credential-shaped content before writing the NDJSON log", async () => {
     const key = `sk-ant-api03-${"abcdefghijklmnopqrstuvwxyz0123456789"}`;
     const bus = new EventBus();
     bus.publish(testEvent({
@@ -81,13 +83,14 @@ describe("EventBus", () => {
       type: "runtime.error",
       message: `provider returned ${key}`,
     }));
+    await bus.flush();
 
     const logged = readFileSync(join(EVENTS_DIR, "redacted-log.ndjson"), "utf8");
     expect(logged).not.toContain(key);
     expect(logged).toContain("«redacted");
   });
 
-  it("reports an incomplete log once while continuing live delivery", () => {
+  it("reports an incomplete log once while continuing live delivery", async () => {
     rmSync(EVENTS_DIR, { recursive: true, force: true });
     const bus = new EventBus();
     const seen: RuntimeEvent[] = [];
@@ -95,32 +98,37 @@ describe("EventBus", () => {
 
     bus.publish(testEvent());
     bus.publish(testEvent({ eventId: "ev-2", type: "turn.completed", ok: true }));
+    expect(seen.map((event) => event.eventId)).toEqual(["ev-1", "ev-2"]);
+    await bus.flush();
 
     expect(seen).toHaveLength(3);
-    expect(seen[0]).toMatchObject({
+    expect(seen[2]).toMatchObject({
       type: "runtime.error",
       threadId: "thread-1",
       message: expect.stringContaining("event history is incomplete"),
     });
-    expect(seen.slice(1).map((event) => event.eventId)).toEqual(["ev-1", "ev-2"]);
+    expect(seen.filter((event) => event.type === "runtime.error")).toHaveLength(1);
     expect(existsSync(EVENTS_DIR)).toBe(false);
   });
 
-  it("writes the incomplete marker before the first event after logging recovers", () => {
+  it("writes the incomplete marker before the first event after logging recovers", async () => {
     let failing = true;
     const writes: string[] = [];
-    const append: typeof appendFileSync = vi.fn((...args: Parameters<typeof appendFileSync>) => {
+    const append = vi.fn((_path: string, data: string) => {
       if (failing) throw new Error("disk full");
-      writes.push(String(args[1]));
+      writes.push(data);
     });
     const bus = new EventBus(append);
     const seen: RuntimeEvent[] = [];
     bus.subscribe((event) => seen.push(event));
 
     bus.publish(testEvent());
+    await bus.flush();
     failing = false;
     bus.publish(testEvent({ eventId: "ev-2", type: "turn.completed", ok: true }));
+    await bus.flush();
     bus.publish(testEvent({ eventId: "ev-3" }));
+    await bus.flush();
 
     const recovered = writes[0].trim().split("\n").map((line) => JSON.parse(line));
     expect(recovered.map((event) => event.type)).toEqual(["runtime.error", "turn.completed"]);
@@ -129,7 +137,7 @@ describe("EventBus", () => {
     expect(seen.filter((event) => event.type === "runtime.error")).toHaveLength(1);
   });
 
-  it("a throwing listener does not starve the others", () => {
+  it("a throwing listener does not starve the others", async () => {
     const bus = new EventBus();
     const seen: RuntimeEvent[] = [];
     bus.subscribe(() => {
@@ -139,6 +147,7 @@ describe("EventBus", () => {
 
     bus.publish(testEvent());
     expect(seen).toHaveLength(1);
+    await bus.flush();
   });
 
   it("unsubscribe and detachAll stop delivery", async () => {
@@ -158,6 +167,79 @@ describe("EventBus", () => {
     bus.detachAll();
     emit(testEvent());
     expect(seenAfterDetach).toHaveLength(0);
+    await bus.flush();
+  });
+
+  it("batches adjacent lines in publish order and flushes them on a terminal event", async () => {
+    const writes: string[] = [];
+    const append = vi.fn((_path: string, data: string) => {
+      writes.push(data);
+    });
+    const bus = new EventBus(append);
+    bus.publish(testEvent({ eventId: "a" }));
+    bus.publish(testEvent({ eventId: "b" }));
+    bus.publish(testEvent({ eventId: "c", type: "turn.completed", ok: true }));
+    await bus.flush();
+
+    expect(append).toHaveBeenCalledTimes(1);
+    const ids = writes[0].trim().split("\n").map((line) => JSON.parse(line).eventId as string);
+    expect(ids).toEqual(["a", "b", "c"]);
+  });
+
+  it("keeps later lines behind an append that is still in flight", async () => {
+    let release: (() => void) | undefined;
+    const writes: string[] = [];
+    const append = vi.fn((_path: string, data: string) => {
+      if (!release) {
+        return new Promise<void>((resolve) => {
+          release = () => {
+            writes.push(data);
+            resolve();
+          };
+        });
+      }
+      writes.push(data);
+    });
+    const bus = new EventBus(append);
+    bus.publish(testEvent({ eventId: "a" }));
+    bus.publish(testEvent({ eventId: "b" }));
+    await Promise.resolve();
+    expect(append).toHaveBeenCalledTimes(1);
+    bus.publish(testEvent({ eventId: "c" }));
+    release?.();
+    await bus.flush();
+
+    const ids = writes.flatMap((chunk) => chunk.trim().split("\n").map((line) => JSON.parse(line).eventId as string));
+    expect(ids).toEqual(["a", "b", "c"]);
+  });
+
+  it("stops queueing once the log buffer is full and warns once", async () => {
+    const writes: string[] = [];
+    const append = vi.fn((_path: string, data: string) => {
+      writes.push(data);
+    });
+    const bus = new EventBus(append);
+    const seen: RuntimeEvent[] = [];
+    bus.subscribe((event) => seen.push(event));
+    for (let i = 0; i < 260; i++) bus.publish(testEvent({ eventId: `e${i}` }));
+    await bus.flush();
+
+    expect(seen.filter((event) => event.type === "runtime.error")).toHaveLength(1);
+    const lines = writes.flatMap((chunk) => chunk.trim().split("\n").map((line) => JSON.parse(line) as { eventId: string; type: string }));
+    const kept = lines.filter((line) => /^e\d+$/.test(line.eventId)).map((line) => line.eventId);
+    expect(kept).toEqual(Array.from({ length: 256 }, (_, i) => `e${i}`));
+    expect(lines.some((line) => line.type === "runtime.error")).toBe(true);
+    expect(kept).not.toContain("e256");
+  });
+
+  it("flushes queued lines when an instance detaches", async () => {
+    const bus = new EventBus();
+    bus.publish(testEvent({ threadId: "detach-me", eventId: "d1" }));
+    bus.detach("missing");
+    await bus.flush();
+
+    const logged = readFileSync(join(EVENTS_DIR, "detach-me.ndjson"), "utf8");
+    expect(logged).toContain('"eventId":"d1"');
   });
 });
 
@@ -182,7 +264,7 @@ describe("EventBus streamed text", () => {
     vi.useRealTimers();
   });
 
-  it("merges deltas that arrive within 50 ms into one event, logged once", () => {
+  it("merges deltas that arrive within 50 ms into one event, logged once", async () => {
     const bus = new EventBus();
     const seen: RuntimeEvent[] = [];
     bus.subscribe((event) => seen.push(event));
@@ -196,14 +278,16 @@ describe("EventBus streamed text", () => {
     vi.advanceTimersByTime(20);
     expect(summary(seen)).toEqual(["thread-1:assistant_text:Hello, world"]);
     expect(seen[0]).toMatchObject({ eventId: "d1", turnId: "turn-1" });
+    await bus.flush();
     expect(summary(logged("thread-1"))).toEqual(["thread-1:assistant_text:Hello, world"]);
 
     bus.publish(delta("!", { eventId: "d4" }));
     vi.advanceTimersByTime(50);
     expect(summary(seen)).toEqual(["thread-1:assistant_text:Hello, world", "thread-1:assistant_text:!"]);
+    await bus.flush();
   });
 
-  it("publishes the waiting text before any other event on that thread", () => {
+  it("publishes the waiting text before any other event on that thread", async () => {
     const bus = new EventBus();
     const seen: RuntimeEvent[] = [];
     bus.subscribe((event) => seen.push(event));
@@ -220,10 +304,11 @@ describe("EventBus streamed text", () => {
       "thread-1:item.completed", "thread-1:assistant_text: late", "thread-1:turn.completed",
     ];
     expect(summary(seen)).toEqual(expected);
+    await bus.flush();
     expect(summary(logged("thread-1"))).toEqual(expected);
   });
 
-  it("never merges across threads, stream kinds, turns or synthetic text", () => {
+  it("never merges across threads, stream kinds, turns or synthetic text", async () => {
     const bus = new EventBus();
     const seen: RuntimeEvent[] = [];
     bus.subscribe((event) => seen.push(event));
@@ -240,6 +325,7 @@ describe("EventBus streamed text", () => {
     vi.advanceTimersByTime(50);
     expect(summary(seen).slice(4).sort()).toEqual(["thread-1:assistant_text:api error", "thread-2:assistant_text:b1b2"]);
     expect(seen.find((event) => event.type === "content.delta" && event.delta === "api error")?.synthetic).toBe(true);
+    await bus.flush();
   });
 
   it("publishes waiting text on detach and on flush", async () => {
@@ -260,5 +346,6 @@ describe("EventBus streamed text", () => {
     expect(summary(seen).at(-1)).toBe("thread-3:assistant_text:last words");
     vi.advanceTimersByTime(100);
     expect(seen).toHaveLength(3);
+    await bus.flush();
   });
 });
