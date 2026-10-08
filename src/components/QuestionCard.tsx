@@ -232,7 +232,7 @@ export function QuestionCard({
                 maxLength={MAX_CUSTOM_ANSWER}
                 onChange={(event) => update(currentIndex, { custom: event.target.value })}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && complete) submit();
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing && complete) submit();
                 }}
                 placeholder={t("question.otherPlaceholder")}
                 className="w-full rounded-lg border border-hairline/40 bg-inset px-3 py-2 text-[14.5px] text-ink placeholder:text-ink-secondary focus:outline-none"
