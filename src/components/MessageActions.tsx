@@ -11,7 +11,8 @@ export const messageActionClass =
 
 /** "auto" follows hover and keyboard focus. "held" keeps the tray out after
  * the pointer leaves. "tucked" keeps it in while the pointer or focus that
- * would reveal it is still there, so closing it from the handle shows. */
+ * would reveal it is still there, so closing it from the handle shows and it
+ * does not open again under the cursor. */
 type TrayMode = "auto" | "held" | "tucked";
 
 function focusVisible(target: EventTarget | null): boolean {
@@ -26,9 +27,11 @@ function focusVisible(target: EventTarget | null): boolean {
  * the row of message controls out sideways — away from the bubble — so an
  * idle message shows a single quiet dot cluster instead of a heap of icons.
  *
- * Clicking the handle flips what is on screen: a tray that hover or focus
- * already opened tucks back, and a closed one comes out and stays out until
- * the handle, Escape or a press outside closes it. `forceOpen` keeps it out
+ * A click or tap on the handle holds the tray out, marked in the accent
+ * colour, until the handle, Escape or a press outside closes it. From the
+ * keyboard the handle flips what is on screen, so Enter on a focus-opened
+ * tray tucks it back and Enter again holds it. A tray opened by hover alone
+ * follows the pointer and closes when it leaves. `forceOpen` keeps it out
  * while a control needs to stay reachable (a message being read aloud, raw
  * markdown showing). Children render in reading order; the tray mirrors them
  * on the user side so the first control stays nearest the bubble on both
@@ -55,10 +58,12 @@ export function MessageActions({
   const mirrored = side === "user";
   usePopoverDismiss(mode === "held", rootRef, () => setMode(hovered || keyboardFocus ? "tucked" : "auto"));
   const toggle = () => {
-    // a mouse on the handle or a keyboard on it has already opened an "auto"
-    // tray; a tap has no hover, so for touch it is still closed
-    const shown = held || (mode === "auto" && pointerType.current !== "touch");
+    // a mouse or a tap holds the tray, the hover-opened one included. Enter or
+    // Space on the handle comes with no pointerdown, and keyboard focus has
+    // already opened an "auto" tray, so the keyboard tucks it
+    const keyboard = pointerType.current === "";
     pointerType.current = "";
+    const shown = held || (mode === "auto" && keyboard);
     setMode(shown ? "tucked" : "held");
   };
   return (
@@ -68,7 +73,10 @@ export function MessageActions({
       data-testid="message-actions"
       data-open={held ? "true" : undefined}
       onPointerEnter={(e) => {
-        if (e.pointerType !== "touch") setHovered(true);
+        if (e.pointerType === "touch") return;
+        setHovered(true);
+        // tucked from away (Escape with focus left on the handle): hover opens it again
+        if (mode === "tucked") setMode("auto");
       }}
       onPointerLeave={(e) => {
         if (e.pointerType === "touch") return;
@@ -85,6 +93,8 @@ export function MessageActions({
         if (mode === "tucked" && !hovered) setMode("auto");
       }}
       onKeyDown={(e) => {
+        // a key on a clicked handle turns its focus into keyboard focus
+        setKeyboardFocus(focusVisible(e.target));
         if (!open || forceOpen || !popoverClosesOnKey(e.nativeEvent)) return;
         e.preventDefault();
         setMode("tucked");
@@ -101,8 +111,12 @@ export function MessageActions({
         title={t("chat.messageActions")}
         aria-expanded={open}
         className={cn(
-          "rounded-md p-1.5 text-ink-secondary transition-opacity hover:bg-raised hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-70",
-          held ? "bg-raised text-ink opacity-100 touch:opacity-100" : "opacity-0",
+          "rounded-md p-1.5 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-70",
+          mode === "held"
+            ? "bg-raised text-accent opacity-100 touch:opacity-100"
+            : forceOpen
+              ? "bg-raised text-ink opacity-100 touch:opacity-100"
+              : "text-ink-secondary opacity-0 hover:bg-raised hover:text-ink",
         )}
       >
         <Ellipsis size={14} aria-hidden="true" />
