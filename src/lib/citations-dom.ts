@@ -122,7 +122,8 @@ export async function highlightCitationSource(citation: CitationAttachment): Pro
     const source = findCitationSource(document, citation);
     const range = source ? resolveCitationRange(source, citation) : null;
     if (source && range) {
-      source.scrollIntoView({ block: "center", behavior: "smooth" });
+      const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+      source.scrollIntoView({ block: "center", behavior: reducedMotion ? "auto" : "smooth" });
       const highlights = (CSS as unknown as { highlights?: { set(name: string, value: unknown): void; delete(name: string): void } }).highlights;
       const HighlightConstructor = (globalThis as unknown as { Highlight?: new (range: Range) => unknown }).Highlight;
       window.clearTimeout(highlightCleanup);

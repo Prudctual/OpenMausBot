@@ -475,6 +475,18 @@ describe("transcript viewport", () => {
     expect(scroller.calls.at(-1)).toEqual({ top: 120 * ROW, behavior: "smooth" });
   });
 
+  it("jumps without animation when reduced motion is requested", () => {
+    vi.stubGlobal("window", {
+      addEventListener: (_: string, listener: (event: Partial<KeyboardEvent>) => void) => keyListeners.add(listener),
+      removeEventListener: (_: string, listener: (event: Partial<KeyboardEvent>) => void) => keyListeners.delete(listener),
+      matchMedia: () => ({ matches: true }),
+    });
+    const view = mount({ messages: rows(300) });
+    view.act(() => view.current.showEarlier());
+    view.act(() => view.current.jumpToLatest());
+    expect(scroller.calls.at(-1)).toEqual({ top: 120 * ROW, behavior: "auto" });
+  });
+
   it("re-arms following when another bot or room opens", () => {
     const view = mount({ messages: rows(30) });
     view.act(() => press("PageUp"));

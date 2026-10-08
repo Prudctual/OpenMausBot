@@ -158,12 +158,24 @@ describe("citation source highlight cleanup", () => {
       clearTimeout: (id: number) => clearTimeout(id),
       getSelection: () => selection,
     });
-    return { node, ranges, selection };
+    return { node, ranges, selection, root };
   };
 
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("scrolls the source without animation when reduced motion is requested", async () => {
+    const { root } = stubDom({});
+    await highlightCitationSource(citation);
+    expect(root.scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "smooth" });
+    vi.stubGlobal("window", {
+      ...window,
+      matchMedia: () => ({ matches: true }),
+    });
+    await highlightCitationSource(citation);
+    expect(root.scrollIntoView).toHaveBeenLastCalledWith({ block: "center", behavior: "auto" });
   });
 
   it("keeps text the user selects after the highlight instead of clearing it", async () => {
