@@ -2417,5 +2417,8 @@
   "place.view.ccNew.short": "就緒",
   "place.view.ccAtOnce.short": "使用中",
   "place.view.localUnavailable.short": "尚未就緒",
-  "place.view.autoTeam.short": "共用"
+  "place.view.autoTeam.short": "共用",
+  "settings.config.ignored": "無法讀取 {path}，已忽略：{reason}",
+  "settings.config.copyPath": "複製路徑",
+  "settings.config.copied": "已複製"
 }

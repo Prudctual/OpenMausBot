@@ -2019,5 +2019,8 @@
   "place.view.ccNew.short": "Готово",
   "place.view.ccAtOnce.short": "Використовується",
   "place.view.localUnavailable.short": "Не готово",
-  "place.view.autoTeam.short": "Спільний"
+  "place.view.autoTeam.short": "Спільний",
+  "settings.config.ignored": "{path} не вдалося прочитати, тож його проігноровано: {reason}",
+  "settings.config.copyPath": "Копіювати шлях",
+  "settings.config.copied": "Скопійовано"
 }

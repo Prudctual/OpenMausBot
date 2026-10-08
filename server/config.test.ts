@@ -43,6 +43,8 @@ import { cacheUntilConfigChanges,
   withInstanceCli,
   WORKSPACE_CREDENTIAL_ENV,
   liveSettingsFor,
+  ignoredConfigFiles,
+  ignoredConfigFilesForAccess,
   LIVE_IDLE_MINUTES_DEFAULT,
   mergeOpenCodeProviderKeys,
   openCodeProviderKeys,
@@ -1939,6 +1941,20 @@ describe("loadConfig with an unusable config.json", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain("invalid JSON");
     expect(String(warn.mock.calls[0]?.[0])).not.toContain("sk-fixture");
+    expect(ignoredConfigFiles()).toEqual([{ path, reason: "invalid JSON" }]);
+  });
+
+  it("remembers the ignored file until it parses again", () => {
+    writeFileSync(path, "{ not json");
+    loadConfig();
+    expect(ignoredConfigFiles()).toEqual([{ path, reason: "invalid JSON" }]);
+    writeFileSync(path, "{}");
+    loadConfig();
+    expect(ignoredConfigFiles()).toEqual([]);
+    expect(ignoredConfigFilesForAccess([{ path: "/Users/ada/.openmausbot/config.json", reason: "invalid JSON" }], true))
+      .toEqual([{ path: "/Users/ada/.openmausbot/config.json", reason: "invalid JSON" }]);
+    expect(ignoredConfigFilesForAccess([{ path: "/Users/ada/.openmausbot/config.json", reason: "invalid JSON" }], false))
+      .toEqual([{ path: "config.json", reason: "invalid JSON" }]);
   });
 
   it("warns again after a repaired or removed file becomes broken", () => {

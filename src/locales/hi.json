@@ -1473,5 +1473,8 @@
   "place.view.ccNew.short": "तैयार",
   "place.view.ccAtOnce.short": "इस्तेमाल में",
   "place.view.localUnavailable.short": "तैयार नहीं",
-  "place.view.autoTeam.short": "साझा"
+  "place.view.autoTeam.short": "साझा",
+  "settings.config.ignored": "{path} पढ़ा नहीं जा सका और अनदेखा किया जा रहा है: {reason}",
+  "settings.config.copyPath": "पथ कॉपी करें",
+  "settings.config.copied": "कॉपी हो गया"
 }

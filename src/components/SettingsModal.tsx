@@ -37,6 +37,7 @@ import { shortcutLabel } from "./ShortcutHint";
 import { UsageSection } from "./UsageSection";
 import { SkillsSection } from "./SkillsSection";
 import { LicenseExpiryBanner } from "./LicenseExpiryBanner";
+import { ConfigParseBanner } from "./ConfigParseBanner";
 import { WorkspacesSection, workspacesAvailable } from "./WorkspacesSection";
 import { SkinPicker } from "./SkinPicker";
 import { FONT_IDS, applyFont, readFont, type FontId } from "@/lib/fonts";
@@ -1213,6 +1214,7 @@ export function SettingsModal() {
 
           <div ref={scrollRef} className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4 sm:px-5 sm:pb-5">
             <LicenseExpiryBanner config={state.config} />
+            <ConfigParseBanner config={state.config} />
             {advanced ? (
               renderSection(section)
             ) : currentPage ? (
