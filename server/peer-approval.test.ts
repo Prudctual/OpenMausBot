@@ -316,6 +316,80 @@ describe("peer approval card lifecycle", () => {
     expect(dismissStalePeerCards(bus)).toBe(1);
   });
 
+  it("dismisses the same unanswered peer cards and leaves every other message", () => {
+    const peer = store.appendMessage(from.threadId, {
+      role: "bot",
+      kind: "options",
+      card: {
+        title: "@Asker wants to contact @Helper",
+        subtitle: "ping",
+        options: ["Allow", "Deny"],
+        requestId: "stale-peer",
+        tool: "delegate_bot",
+      },
+    });
+    const chat = store.appendMessage(from.threadId, {
+      role: "user",
+      kind: "text",
+      text: "unrelated",
+    });
+    const provider = store.appendMessage(from.threadId, {
+      role: "bot",
+      kind: "options",
+      card: {
+        title: "Allow this command?",
+        subtitle: "ls",
+        options: ["Allow", "Deny"],
+        requestId: "provider-ask",
+        tool: "bash",
+      },
+    });
+    const answered = store.appendMessage(from.threadId, {
+      role: "bot",
+      kind: "options",
+      card: {
+        title: "@Asker wants to contact @Helper",
+        subtitle: "done",
+        options: ["Allow", "Deny"],
+        requestId: "already-answered",
+        tool: "ask_bot",
+        answered: "allow",
+      },
+    });
+    const stray = store.appendMessage("not-a-peer-thread", {
+      role: "bot",
+      kind: "options",
+      card: {
+        title: "@Asker wants to post in “nowhere”",
+        subtitle: "orphan thread",
+        options: ["Allow", "Deny"],
+        requestId: "outside-the-walk",
+        tool: "post_to_room",
+      },
+    });
+
+    expect(dismissStalePeerCards(bus)).toBe(1);
+
+    const messages = store.messagesFor(from.threadId);
+    expect(messages.find((message) => message.id === peer.id)?.card).toMatchObject({
+      answered: "deny",
+      dismissed: true,
+      requestId: "stale-peer",
+    });
+    expect(messages.find((message) => message.id === chat.id)).toMatchObject({ kind: "text", text: "unrelated" });
+    expect(messages.find((message) => message.id === provider.id)?.card?.dismissed).toBeUndefined();
+    expect(messages.find((message) => message.id === provider.id)?.card?.answered).toBeUndefined();
+    expect(messages.find((message) => message.id === answered.id)?.card).toMatchObject({
+      answered: "allow",
+      requestId: "already-answered",
+    });
+    expect(messages.find((message) => message.id === answered.id)?.card?.dismissed).toBeUndefined();
+    const left = store.messagesFor("not-a-peer-thread").find((message) => message.id === stray.id);
+    expect(left?.card?.requestId).toBe("outside-the-walk");
+    expect(left?.card?.dismissed).toBeUndefined();
+    expect(left?.card?.answered).toBeUndefined();
+  });
+
   it("leaves a live card alone at boot", async () => {
     void requestPeerApproval(bus, from, target, "ping", "ask_bot");
     expect(pendingCard(store, from)).toBeTruthy();

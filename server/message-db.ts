@@ -59,6 +59,11 @@ function open(): DatabaseSync {
     -- walk these rows in time order on messages_thread. Created on every
     -- open, including a database that already has messages.
     CREATE INDEX IF NOT EXISTS messages_thread_at ON messages(thread_id, at);
+    -- Unanswered peer-approval cards are a handful of rows. Boot used to
+    -- load every message of every thread to find them; this keeps that
+    -- lookup on the rows that actually carry a request id.
+    CREATE INDEX IF NOT EXISTS messages_peer_approval_cards ON messages(thread_id, id)
+      WHERE json_extract(json, '$.card.requestId') IS NOT NULL;
     CREATE TABLE IF NOT EXISTS thread_state (
       thread_id TEXT PRIMARY KEY,
       active_leaf_id TEXT
@@ -473,6 +478,23 @@ export function updateMessage(threadId: string, message: Message): void {
   db()
     .prepare("UPDATE messages SET at = ?, role = ?, kind = ?, text = ?, json = ? WHERE thread_id = ? AND id = ?")
     .run(message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), threadId, message.id);
+}
+
+/** Peer cards a restart can no longer answer. Only candidate rows: kind is
+ * not required, because the boot walk keys off the card, and a partial
+ * index already limits this to messages that stored a request id. */
+export function unansweredPeerApprovalCards(): Array<{ threadId: string; message: Message }> {
+  const rows = db()
+    .prepare(
+      "SELECT thread_id, json FROM messages " +
+      "WHERE json_extract(json, '$.card.requestId') IS NOT NULL " +
+      "AND json_extract(json, '$.card.requestId') != '' " +
+      "AND json_extract(json, '$.card.tool') IN ('ask_bot', 'delegate_bot', 'post_to_room') " +
+      "AND (json_extract(json, '$.card.answered') IS NULL OR json_type(json, '$.card.answered') = 'false' OR json_extract(json, '$.card.answered') = '') " +
+      "AND (json_extract(json, '$.card.dismissed') IS NULL OR json_type(json, '$.card.dismissed') = 'false' OR json_extract(json, '$.card.dismissed') = '')",
+    )
+    .all() as Array<{ thread_id: string; json: string }>;
+  return rows.map((row) => ({ threadId: row.thread_id, message: JSON.parse(row.json) as Message }));
 }
 
 /** Goal cards are new SQLite-backed messages, so crash recovery can locate
