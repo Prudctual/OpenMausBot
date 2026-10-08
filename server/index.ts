@@ -501,7 +501,7 @@ import { OutboundRequestService } from "./outbound-requests.ts";
 import { DEFAULT_OUTBOUND_POLICY, connectorCallsIn, normalizeOutboundPolicy, outboundCallsIn } from "../shared/outbound.ts";
 import { connectorAccessDecision, describeConnectorScopes, normalizeConnectorScopes } from "../shared/connector-scopes.ts";
 import { bindThreadLogCapProvider } from "./thread-log-rotation.ts";
-import { listenWebhookIngress, webhookCredential, type WebhookIngress } from "./webhook-ingress.ts";
+import { createTunnelRequestHandler, createWebhookIngressHandler, listenWebhookIngress, webhookCredential, type WebhookIngress } from "./webhook-ingress.ts";
 import { assertModelVariantSupported, memberTurnSelection } from "./member-turn.ts";
 import { WebhookManager } from "./webhooks.ts";
 import type { WebhookTrigger } from "../shared/webhooks.ts";
@@ -25649,7 +25649,13 @@ const TUNNEL_SOCKET = process.env.OMB_TUNNEL_SOCKET?.trim() || null;
 let tunnelListener: ReturnType<typeof createServer> | null = null;
 if (TUNNEL_SOCKET) {
   if (process.platform !== "win32") rmSync(TUNNEL_SOCKET, { force: true });
-  tunnelListener = createServer(handleRequest);
+  // Caddy and Cloud already send /hooks to the webhook port. The managed
+  // tunnel has only this listener, so the same POST is handed to the receiver
+  // here. Pairing still covers every other path. No receiver means no bypass.
+  const tunnelHandler = webhookIngress
+    ? createTunnelRequestHandler(handleRequest, createWebhookIngressHandler(webhooks, () => workspaceMaintenance.request()))
+    : handleRequest;
+  tunnelListener = createServer(tunnelHandler);
   desktopViewer.attach(tunnelListener, handleRequest);
   tunnelListener.listen(TUNNEL_SOCKET, () => {
     console.log(`openmausbot tunnel listener on ${TUNNEL_SOCKET}`);

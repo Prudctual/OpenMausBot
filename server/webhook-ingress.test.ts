@@ -1,13 +1,18 @@
 import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   advertisedWebhookBase,
+  createTunnelRequestHandler,
+  createWebhookIngressHandler,
+  isWebhookDeliveryPath,
   listenWebhookIngress,
   MAX_WEBHOOK_BODY_BYTES,
   webhookCredential,
+  webhookPublicUrlForEdge,
   type WebhookIngress,
 } from "./webhook-ingress.ts";
 import { WebhookManager } from "./webhooks.ts";
@@ -223,5 +228,65 @@ describe("advertised base URL", () => {
       expect(() => advertisedWebhookBase(bad)).toThrow(/absolute http\(s\) URL such as https:\/\//);
     }
     expect(advertisedWebhookBase("http://10.0.0.5:8800///")).toBe("http://10.0.0.5:8800");
+  });
+});
+
+describe("tunnel webhook delivery", () => {
+  it("classifies a delivery path and nothing that can reach the app", () => {
+    expect(isWebhookDeliveryPath("/hooks/wh_abc")).toBe(true);
+    expect(isWebhookDeliveryPath("/hooks/wh_abc/secret")).toBe(true);
+    expect(isWebhookDeliveryPath("/hooks/wh_abc/secret?dropped=1")).toBe(true);
+    expect(isWebhookDeliveryPath("/hooks/wh_abc/a/b")).toBe(false);
+    expect(isWebhookDeliveryPath("/hooks/not-a-hook")).toBe(false);
+    expect(isWebhookDeliveryPath("/health")).toBe(false);
+    expect(isWebhookDeliveryPath("/api/bots")).toBe(false);
+    expect(isWebhookDeliveryPath("/hooks/wh_abc/../../api/bots")).toBe(false);
+  });
+
+  it("advertises the public address only for an edge that already routes hooks", () => {
+    expect(webhookPublicUrlForEdge({ tunnel: true, domain: false, publicUrl: "https://c-1.example.com/" })).toBe("https://c-1.example.com");
+    expect(webhookPublicUrlForEdge({ tunnel: false, domain: true, publicUrl: "https://maus.example.com" })).toBe("https://maus.example.com");
+    expect(webhookPublicUrlForEdge({ tunnel: false, domain: false, publicUrl: "https://tailnet.example.com" })).toBeUndefined();
+    expect(webhookPublicUrlForEdge({
+      tunnel: true, domain: false, publicUrl: "https://c-1.example.com", existing: "https://keep.example.com",
+    })).toBe("https://keep.example.com");
+    expect(webhookPublicUrlForEdge({ tunnel: true, domain: false, publicUrl: "not a url" })).toBeUndefined();
+  });
+
+  it("gives a tunnel hook to the receiver and every other request to the app", async () => {
+    const isolated = mkdtempSync(join(tmpdir(), "omb-tunnel-hooks-"));
+    const local = new WebhookManager({
+      file: join(isolated, "webhooks.json"),
+      botState: () => "ready",
+      enqueue: () => ({ id: "tunnel-run" }),
+    });
+    const created = local.create({ name: "CI", prompt: "Read the event", botId: "maus-1" });
+    const appHits: string[] = [];
+    const server = createServer(createTunnelRequestHandler((req, res) => {
+      appHits.push(`${req.method} ${req.url}`);
+      res.writeHead(401, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "Sign in" }));
+    }, createWebhookIngressHandler(local)));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("tunnel fixture did not listen");
+    const call = (method: string, path: string) => fetch(`http://127.0.0.1:${address.port}${path}`, { method, body: method === "POST" ? "{}" : undefined });
+    try {
+      const accepted = await call("POST", `/hooks/${created.webhook.endpointId}/${encodeURIComponent(created.secret)}`);
+      expect(accepted.status).toBe(202);
+      expect(appHits).toEqual([]);
+      expect((await call("POST", "/api/bots")).status).toBe(401);
+      expect((await call("GET", "/health")).status).toBe(401);
+      expect((await call("GET", `/hooks/${created.webhook.endpointId}`)).status).toBe(401);
+      expect((await call("POST", `/hooks/${created.webhook.endpointId}/wrong`)).status).toBe(401);
+      expect(appHits.map((hit) => hit.split("?")[0])).toEqual([
+        "POST /api/bots",
+        "GET /health",
+        `GET /hooks/${created.webhook.endpointId}`,
+      ]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      rmSync(isolated, { recursive: true, force: true });
+    }
   });
 });
