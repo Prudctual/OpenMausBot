@@ -7,6 +7,8 @@
 // An oversized `tools/call` result is cut to a budget (mcp-trim.ts), the
 // untrimmed text is written to a file, and the model is told in the result
 // where that file is so it can read or grep the rest with its ordinary tools.
+// A large PDF, audio clip, or other non-image binary is saved the same way
+// and replaced with one short line that names the file. Images stay inline.
 //
 // Why here and not in the driver: on every vendor-CLI engine the tool call and
 // its result never pass through the harness at all. The CLI runs the server
@@ -23,6 +25,7 @@ import { allowsTool, parseToolScope, type ToolScope } from "../shared/tool-scope
 
 import { resolveCliSpawn } from "./env-path.ts";
 import { directoryCallTarget, isDirectoryTool } from "./mcp-directory.ts";
+import { binaryReference, takeLargeBinary } from "./mcp-binary.ts";
 import { DEFAULT_RESULT_BUDGET, trimResultText, trimStructured } from "./mcp-trim.ts";
 import { killCliTree } from "./procs.ts";
 
@@ -141,13 +144,13 @@ let spilled = 0;
 /** Save the untrimmed text and return its path, or undefined when there is
  * nowhere to put it — the trim still happens, the model is just told the rest
  * was discarded rather than where to find it. */
-function spill(tool: string, text: string): string | undefined {
+function spillFile(tool: string, body: string | Buffer, extension: string): string | undefined {
   if (!SPILL_DIR) return undefined;
   const safeTool = tool.replace(/[^A-Za-z0-9_.-]/g, "-").slice(0, 60) || "tool";
-  const path = join(SPILL_DIR, `${Date.now()}-${process.pid}-${spilled++}-${safeTool}.json`);
+  const path = join(SPILL_DIR, `${Date.now()}-${process.pid}-${spilled++}-${safeTool}.${extension}`);
   try {
     mkdirSync(SPILL_DIR, { recursive: true, mode: 0o700 });
-    writeFileSync(path, text, { mode: 0o600 });
+    writeFileSync(path, body, { mode: 0o600 });
     return path;
   } catch (error) {
     process.stderr.write(`mcp-gate(${NAME}): could not save the full result: ${String(error)}\n`);
@@ -155,12 +158,30 @@ function spill(tool: string, text: string): string | undefined {
   }
 }
 
-/** Rewrite one `tools/call` result in place. Returns true when anything was
- * actually trimmed, so the caller can report it on stderr. */
+function spill(tool: string, text: string): string | undefined {
+  return spillFile(tool, text, "json");
+}
+
+/** Replace a large non-image binary with a short path. A block that cannot
+ * be saved stays as it arrived, so a missing spill directory never drops it. */
+function offloadLargeBinaries(content: Json[], tool: string): void {
+  for (let index = 0; index < content.length; index++) {
+    const binary = takeLargeBinary(content[index]);
+    if (!binary) continue;
+    const path = spillFile(tool, binary.bytes, binary.extension);
+    if (!path) continue;
+    content[index] = { type: "text", text: binaryReference({ mime: binary.mime, bytes: binary.bytes.length, path }) };
+  }
+}
+
+/** Rewrite one `tools/call` result in place. Returns true when text was
+ * cut, so the caller can report that on stderr. A binary saved to a file
+ * is already replaced here and does not count as a text trim. */
 function trimCallResult(result: Json, tool: string): boolean {
   if (BUDGET === 0) return false;
   const content = result.content;
   if (!Array.isArray(content)) return false;
+  offloadLargeBinaries(content, tool);
 
   // The text blocks are what a provider puts in the model's context, and a
   // server that answers with several is answering with one payload split up,
