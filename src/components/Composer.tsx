@@ -75,6 +75,12 @@ import {
   replaceComposerSlashTrigger,
   type ComposerSlashCommand,
 } from "@/lib/composer-commands";
+import {
+  dictationEndAction,
+  dictationLineAction,
+  dictationSendPlan,
+  keepSpeechSession,
+} from "@/lib/dictation-send";
 
 /** The active @mention query at the caret: the text between an `@` that
  * starts a word and the caret. null = no mention being typed. */
@@ -281,6 +287,12 @@ export function Composer({
   const mentionListRef = useRef<HTMLDivElement>(null);
   // what was typed before the mic went on — partials append after it
   const baseText = useRef("");
+  // send while the mic is open waits for the recognizer's final line
+  const finishThenSend = useRef(false);
+  const dictationHandled = useRef(false);
+  const textRef = useRef(text);
+  const sendRef = useRef<(override?: string) => void>(() => {});
+  textRef.current = text;
 
   // image paste is offered only when every bot that will actually answer
   // can open one. sendGroup routes to mentions, else the room default —
@@ -601,11 +613,49 @@ export function Composer({
       dispatch({ type: "send", botId: bot.id, ...retry });
     }
   };
-  const send = () => {
+  const send = (override?: string) => {
     if (locked || attachmentPending) return;
+    if (override === undefined && finishThenSend.current) return;
+    if (
+      override === undefined &&
+      !dictationHandled.current &&
+      dictationSendPlan(recording, typeof window.ogb?.speechFinish === "function") === "finish-then-send"
+    ) {
+      dictationHandled.current = false;
+      finishThenSend.current = true;
+      const finish = window.ogb?.speechFinish;
+      if (finish) {
+        void Promise.resolve(finish()).catch(() => {
+          if (!finishThenSend.current || dictationHandled.current) return;
+          finishThenSend.current = false;
+          dictationHandled.current = true;
+          setRecording(false);
+          sendRef.current(textRef.current);
+        });
+      }
+      return;
+    }
+    if (override === undefined && recording) {
+      finishThenSend.current = false;
+      dictationHandled.current = true;
+      setRecording(false);
+    }
+    const source = override ?? text;
+    let outgoing = source;
+    let mode = channelMode;
+    if (override === undefined) {
+      outgoing = effectiveText;
+      mode = effectiveChannelMode;
+    } else if (group && !group.dm) {
+      const goalText = goalTextFromComposer(source);
+      if (goalText !== null) {
+        outgoing = goalText;
+        mode = "goal";
+      }
+    }
     if (
       attachments.some((attachment) => attachment.kind === "image") &&
-      !imageTargetsSupport(effectiveText, effectiveChannelMode)
+      !imageTargetsSupport(outgoing, mode)
     ) {
       dispatch({ type: "error", message: t("composer.error.noImages") });
       return;
@@ -613,19 +663,19 @@ export function Composer({
     // named `body`, not `t` — that name belongs to the catalog lookup now
     // resolvable "#Title" runs leave as canonical links, so the thread id
     // stays machine-readable in the stored send and the model's context
-    const body = composeMessage(serializeThreadRefs(effectiveText, threads, currentBotId), attachments);
+    const body = composeMessage(serializeThreadRefs(outgoing, threads, currentBotId), attachments);
     if (!body) return;
     const sentDraft: ComposerDraftSnapshot = {
       draftId,
       revision: draftRevision(draftId),
       sendId: restoredSendId(draftId) ?? crypto.randomUUID(),
-      text,
+      text: source,
       requestText: body,
       attachments: [...attachments],
       reply: replyTo ?? null,
       replyToId: replyTo?.id,
       threadId,
-      channelMode: group ? effectiveChannelMode : undefined,
+      channelMode: group ? mode : undefined,
     };
     if (group) {
       dispatch({
@@ -635,10 +685,10 @@ export function Composer({
         sendId: sentDraft.sendId,
         replyToId: replyTo?.id,
         threadId,
-        mode: effectiveChannelMode,
+        mode,
         onError: () => restoreDraft(sentDraft),
       });
-      track("message_sent", { room: true, mode: effectiveChannelMode, queued: busy });
+      track("message_sent", { room: true, mode, queued: busy });
     } else if (bot) {
       dispatch({
         type: "send",
@@ -656,6 +706,7 @@ export function Composer({
     onConsumeReply?.();
     if (group) setChannelMode("chat");
   };
+  sendRef.current = send;
 
   /**
    * Handles clipboard paste events in the composer textarea: converts pasted clipboard
@@ -749,13 +800,38 @@ export function Composer({
     }
     setSpeechError(null);
     const offTranscript = bridge.onSpeechTranscript((line) => {
-      if (typeof line.text === "string") {
-        const base = baseText.current;
-        editText(base ? `${base} ${line.text}` : line.text);
+      if (dictationHandled.current) return;
+      const action = dictationLineAction(
+        finishThenSend.current,
+        baseText.current,
+        textRef.current,
+        line,
+      );
+      if (action.type === "send") {
+        finishThenSend.current = false;
+        dictationHandled.current = true;
+        setRecording(false);
+        sendRef.current(action.text);
+        return;
       }
+      if (action.type === "update") {
+        if (action.text !== textRef.current) {
+          textRef.current = action.text;
+          editText(action.text);
+        }
+        return;
+      }
+      const unreachable: never = action;
+      return unreachable;
     });
     const offEnd = bridge.onSpeechEnd(({ code, reason }) => {
+      const pending = finishThenSend.current;
+      finishThenSend.current = false;
       setRecording(false);
+      if (dictationEndAction(pending && !dictationHandled.current) === "send-current") {
+        dictationHandled.current = true;
+        sendRef.current(textRef.current);
+      }
       if (code === 2) {
         setSpeechError(t("composer.dictation.macOnly"));
       } else if (code === 1) {
@@ -768,10 +844,14 @@ export function Composer({
         ));
       }
     });
-    void bridge.speechStart();
+    if (!keepSpeechSession(finishThenSend.current)) {
+      dictationHandled.current = false;
+      void bridge.speechStart();
+    }
     return () => {
       offTranscript();
       offEnd();
+      if (keepSpeechSession(finishThenSend.current)) return;
       void bridge.speechStop();
     };
   }, [recording, editText]);
@@ -781,6 +861,8 @@ export function Composer({
       setSpeechError(t("composer.dictation.unavailable"));
       return;
     }
+    finishThenSend.current = false;
+    dictationHandled.current = false;
     baseText.current = text.trim();
     setRecording((r) => !r);
   };
@@ -1131,7 +1213,11 @@ export function Composer({
               }
               send();
             }
-            if (e.key === "Escape" && recording) setRecording(false);
+            if (e.key === "Escape" && recording) {
+              finishThenSend.current = false;
+              dictationHandled.current = true;
+              setRecording(false);
+            }
           }}
           // an upload in flight must not disable the box: a disabled element
           // drops keyboard focus and never gets it back, so the writer had to
@@ -1202,7 +1288,7 @@ export function Composer({
         {bot && !group && <CallButton bot={bot} placement="composer" />}
         {hasContent && !locked && (
           <button
-            onClick={send}
+            onClick={() => send()}
             disabled={attachmentPending}
             aria-label={
               busy && canSteer
