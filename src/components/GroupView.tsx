@@ -27,7 +27,8 @@ import { showToolCallsEnabled } from "@/lib/feature-flags";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { roomActivityVisible } from "@/lib/room-activity";
 import { StatusActivityRow } from "@/components/StatusActivityRow";
-import { normalizeState } from "@/lib/mascot";
+import { MAUS_COLOR_NAMES, normalizeState, type MausColor } from "@/lib/mascot";
+import { botTextShowsSpeaker, laterTextOwns, runShowsSpeaker } from "@/lib/room-speaker";
 import { defaultResponderName, effectiveDefaultResponder, groupResponseHint, jevRoomRoutingOn } from "@/lib/group-routing";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { CopyButton, FailedTurnRow, MessageBoundary } from "./ChatView";
@@ -135,8 +136,14 @@ export function RoomToolChip({ message, roomId }: { message: Message; roomId?: s
   );
 }
 
-/** 16px profile avatar + name, shown once per sender cluster. */
+function isPaletteColor(color: string): color is MausColor {
+  return (MAUS_COLOR_NAMES as readonly string[]).includes(color);
+}
+
+/** 16px profile avatar + name, shown once per sender cluster. The name uses
+ * that bot's color, deepened or lightened per skin so it stays readable. */
 function ClusterLabel({ bot, name, color }: { bot?: Bot; name: string; color: string }) {
+  const known = isPaletteColor(color);
   return (
     <div className="mt-1 flex items-center gap-1.5 pl-0.5">
       <BotAvatar
@@ -147,7 +154,10 @@ function ClusterLabel({ bot, name, color }: { bot?: Bot; name: string; color: st
         motionKey={0}
         animated={false}
       />
-      <span className="text-[11px] font-medium text-ink-secondary">{name}</span>
+      <span
+        className={cn("text-[11px] font-medium", known ? "bot-identity" : "text-ink-secondary")}
+        data-bot-color={known ? color : undefined}
+      >{name}</span>
     </div>
   );
 }
@@ -378,7 +388,6 @@ export const Transcript = memo(function Transcript({
         const newDay = !prev || localDay(prev.at) !== localDay(first.at);
         if (item.kind === "run") {
           if (!showToolCalls) return null;
-          const cluster = !prev || prev.role !== first.role || prev.from?.botId !== first.from?.botId || newDay;
           return (
             <div key={item.id} className="contents">
               {newDay && (
@@ -386,7 +395,7 @@ export const Transcript = memo(function Transcript({
                   {dayLabel(first.at)} {formatTime(first.at)}
                 </div>
               )}
-              {first.from && cluster && (
+              {first.from && runShowsSpeaker(items, i, showToolCalls) && (
                 <ClusterLabel bot={memberOf(first.from.botId)} name={first.from.name} color={first.from.color} />
               )}
               <ActivityRun messages={item.messages} forceOpen={item.messages.some((step) => step.id === focusedId)}>
@@ -481,7 +490,10 @@ export const Transcript = memo(function Transcript({
                 {dayLabel(m.at)} {formatTime(m.at)}
               </div>
             )}
-            {!user && m.from && newCluster && !(m.kind === "activity" && m.comm) && (
+            {m.from && (
+              (m.kind === "text" && botTextShowsSpeaker(items, i))
+              || (!user && m.kind !== "text" && newCluster && !(m.kind === "activity" && m.comm) && !laterTextOwns(items, i, m.from.botId, m.at))
+            ) && (
               <ClusterLabel bot={memberOf(m.from.botId)} name={m.from.name} color={m.from.color} />
             )}
             {row}
