@@ -471,9 +471,27 @@ function removeNativeLinksForUnsafeSkillsRoot(
 /** Recreate the native-discovery links from the manifest. Links, not copies,
  * so disable/remove has exactly one source of truth; junctions on Windows
  * because directory symlinks there need privileges junctions do not. */
+/** One pass over a bot's reviewed skills: the manifest and whether each
+ * stored SKILL.md still matches its review. A turn reuses it for native
+ * links and the prompt index, so the file is hashed once. Callers that
+ * sync or list on their own still check for themselves. */
+interface SkillIntegrityScan {
+  manifest: SkillManifest;
+  intact: ReadonlyMap<string, boolean>;
+}
+
+function scanSkillIntegrity(botId: string): SkillIntegrityScan {
+  const manifest = readManifest(botId);
+  const intact = new Map<string, boolean>();
+  for (const [name, entry] of Object.entries(manifest)) {
+    intact.set(name, skillContentMatches(botId, name, entry));
+  }
+  return { manifest, intact };
+}
+
 export function syncSkillLinks(
   botId: string,
-  options: { beforeRemove?: (link: string) => void } = {},
+  options: { beforeRemove?: (link: string) => void; integrity?: SkillIntegrityScan } = {},
 ): void {
   const root = workspaceDir(botId);
   const previouslyManaged = readManagedLinks(botId);
@@ -484,10 +502,13 @@ export function syncSkillLinks(
     removeNativeLinksForUnsafeSkillsRoot(botId, root, previouslyManaged, options.beforeRemove);
     return;
   }
-  const manifest = readManifest(botId);
-  const enabled = Object.entries(manifest).filter(
-    ([name, entry]) => entry.enabled && skillContentMatches(botId, name, entry),
-  );
+  const manifest = options.integrity?.manifest ?? readManifest(botId);
+  const enabled = Object.entries(manifest).filter(([name, entry]) => {
+    const intact = options.integrity
+      ? options.integrity.intact.get(name) === true
+      : skillContentMatches(botId, name, entry);
+    return entry.enabled && intact;
+  });
   const desired = new Map(enabled.map(([name, entry]) => [name, skillTarget(root, name, entry)]));
   const managed = new Set<string>();
   for (const dir of NATIVE_SKILL_DIRS) {
@@ -573,9 +594,9 @@ function skillContentMatches(botId: string, name: string, entry: SkillManifestEn
   }
 }
 
-function skillListing(botId: string, name: string, entry: SkillManifestEntry): SkillListing {
+function skillListing(botId: string, name: string, entry: SkillManifestEntry, knownIntact?: boolean): SkillListing {
   const { appliedStageId, storageRevision: _storageRevision, package: _package, ...visible } = entry;
-  const intact = skillContentMatches(botId, name, entry);
+  const intact = knownIntact ?? skillContentMatches(botId, name, entry);
   return {
     name,
     ...visible,
@@ -587,10 +608,10 @@ function skillListing(botId: string, name: string, entry: SkillManifestEntry): S
   };
 }
 
-export function listSkills(botId: string): SkillListing[] {
-  const manifest = readManifest(botId);
+export function listSkills(botId: string, integrity?: SkillIntegrityScan): SkillListing[] {
+  const manifest = integrity?.manifest ?? readManifest(botId);
   return Object.entries(manifest)
-    .map(([name, entry]) => skillListing(botId, name, entry))
+    .map(([name, entry]) => skillListing(botId, name, entry, integrity?.intact.get(name)))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -1417,15 +1438,18 @@ export function skillsSystemPrompt(botId: string, assignedLibrary?: readonly str
 
 function composeSkillsSystemPrompt(botId: string, assignedLibrary: readonly string[] | undefined): string {
   // Reconcile links on every turn. If the workspace copy changed since its
-  // review, integrity filtering below removes it from native discovery too.
-  syncSkillLinks(botId);
-  const enabled = resolveBotSkills(botId, assignedLibrary).filter((skill) => skill.enabled);
+  // review, the same integrity pass removes it from native discovery and
+  // from the prompt. The pass hashes each SKILL.md once; linking does not
+  // rewrite those files.
+  const integrity = scanSkillIntegrity(botId);
+  syncSkillLinks(botId, { integrity });
+  const enabled = resolveBotSkills(botId, assignedLibrary, integrity).filter((skill) => skill.enabled);
   if (!enabled.length) {
     loggedIndexOmissions.delete(botId);
     return "";
   }
   const root = workspaceDir(botId);
-  const manifest = readManifest(botId);
+  const manifest = integrity.manifest;
   const lines: string[] = [];
   const intro = "\n\nImported skills:\n";
   const guidance = "Before starting a task one of these covers, read its exact SKILL.md path above with your file tools and follow it. " +
@@ -1462,8 +1486,12 @@ function composeSkillsSystemPrompt(botId: string, assignedLibrary: readonly stri
  * winning any name collision (the lane's resolution order: bot-private >
  * library > bundled). `undefined` assignments return exactly
  * `listSkills(botId)` — the flag-off contract. */
-export function resolveBotSkills(botId: string, assignedLibrary: readonly string[] | undefined): SkillListing[] {
-  const own = listSkills(botId);
+export function resolveBotSkills(
+  botId: string,
+  assignedLibrary: readonly string[] | undefined,
+  integrity?: SkillIntegrityScan,
+): SkillListing[] {
+  const own = listSkills(botId, integrity);
   if (!assignedLibrary?.length) return own;
   const ownNames = new Set(own.map((skill) => skill.name));
   const assigned = new Set(assignedLibrary);
