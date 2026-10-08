@@ -156,18 +156,28 @@ describe("saveBotAttachment for a file a turn saved outside its folders", () => 
       .rejects.toMatchObject({ status: 403, message: expect.stringContaining("not saved during this turn") });
   });
 
-  it("refuses hidden folders, the app's data and a link into either, however fresh", async () => {
+  it("refuses hidden folders and the app's data, however fresh", async () => {
     const since = Date.now();
     const hidden = join(DATA_ROOT, ".ssh");
     mkdirSync(hidden, { recursive: true });
     writeFileSync(join(hidden, "key.pdf"), "%PDF-key");
     mkdirSync(join(process.env.OMB_DATA_DIR!, "workspaces"), { recursive: true });
     writeFileSync(join(process.env.OMB_DATA_DIR!, "workspaces", "MEMORY.md"), "# private");
-    symlinkSync(join(hidden, "key.pdf"), join(DESIGNS, "innocent.pdf"));
-    for (const path of [join(hidden, "key.pdf"), join(process.env.OMB_DATA_DIR!, "workspaces", "MEMORY.md"), join(DESIGNS, "innocent.pdf")]) {
+    for (const path of [join(hidden, "key.pdf"), join(process.env.OMB_DATA_DIR!, "workspaces", "MEMORY.md")]) {
       await expect(saveBotAttachment({ path, roots: [WORK], savedThisTurn: { since, refuse } }), path)
         .rejects.toMatchObject({ status: 403, code: "outside_workspace" });
     }
+  });
+
+  // creating a symlink needs extra rights on windows
+  it.skipIf(process.platform === "win32")("refuses a fresh link into a hidden folder", async () => {
+    const since = Date.now();
+    const hidden = join(DATA_ROOT, ".ssh");
+    mkdirSync(hidden, { recursive: true });
+    writeFileSync(join(hidden, "linked-key.pdf"), "%PDF-key");
+    symlinkSync(join(hidden, "linked-key.pdf"), join(DESIGNS, "innocent.pdf"));
+    await expect(saveBotAttachment({ path: join(DESIGNS, "innocent.pdf"), roots: [WORK], savedThisTurn: { since, refuse } }))
+      .rejects.toMatchObject({ status: 403, code: "outside_workspace" });
   });
 
   it("keeps every other check: folders, types, the size cap and a missing file in the roots", async () => {
