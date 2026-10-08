@@ -1494,7 +1494,9 @@
       "place.view.ccNew.short": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f",
       "place.view.ccAtOnce.short": "750af77aa42eea62726061b574cf8ab011cf3f7f60926532aad4b0da028ed046",
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
-      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a"
+      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "es": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -2971,7 +2973,9 @@
       "place.view.ccNew.short": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f",
       "place.view.ccAtOnce.short": "750af77aa42eea62726061b574cf8ab011cf3f7f60926532aad4b0da028ed046",
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
-      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a"
+      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "fr": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -4448,7 +4452,9 @@
       "place.view.ccNew.short": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f",
       "place.view.ccAtOnce.short": "750af77aa42eea62726061b574cf8ab011cf3f7f60926532aad4b0da028ed046",
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
-      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a"
+      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "hi": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -5925,7 +5931,9 @@
       "place.view.ccNew.short": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f",
       "place.view.ccAtOnce.short": "750af77aa42eea62726061b574cf8ab011cf3f7f60926532aad4b0da028ed046",
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
-      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a"
+      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "ja": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -7404,7 +7412,9 @@
       "place.view.ccNew.short": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f",
       "place.view.ccAtOnce.short": "750af77aa42eea62726061b574cf8ab011cf3f7f60926532aad4b0da028ed046",
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
-      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a"
+      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "pt-br": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -8894,7 +8904,9 @@
       "place.view.ccNew.short": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f",
       "place.view.ccAtOnce.short": "750af77aa42eea62726061b574cf8ab011cf3f7f60926532aad4b0da028ed046",
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
-      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a"
+      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "zh": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -11322,7 +11334,9 @@
       "settings.mcpCalls.minutes": "90e63d85fa1ab2c8ed65222f3ebd794b1e524b4b7cf84bec451542d0451b2985",
       "settings.mcpCalls.help": "ab68b50dacfde418b196b13a3bf56f942f61071126f02d0e65e7241197ddefd5",
       "settings.mcpCalls.error": "be999a512b832def08c23ad6e85145183598f18ff9bb79075a419fbec42aba1f",
-      "settings.mcpCalls.range": "5023bf6d4be92ea4f7aab1f63c9d193d628b8ca27ea9983e530b2c4e0c257f70"
+      "settings.mcpCalls.range": "5023bf6d4be92ea4f7aab1f63c9d193d628b8ca27ea9983e530b2c4e0c257f70",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "zh-tw": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -13743,7 +13757,9 @@
       "place.view.ccNew.short": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f",
       "place.view.ccAtOnce.short": "750af77aa42eea62726061b574cf8ab011cf3f7f60926532aad4b0da028ed046",
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
-      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a"
+      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "uk": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -15766,7 +15782,9 @@
       "place.view.ccNew.short": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f",
       "place.view.ccAtOnce.short": "750af77aa42eea62726061b574cf8ab011cf3f7f60926532aad4b0da028ed046",
       "place.view.localUnavailable.short": "330010f40240ecd83defa493b21a57b0504ddea6d30810be14e06debba8ad55b",
-      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a"
+      "place.view.autoTeam.short": "e3c4b39d6d5013477c98cd58236fed455f37aa7017b7168ce1980a449aaf438a",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     }
   }
 }

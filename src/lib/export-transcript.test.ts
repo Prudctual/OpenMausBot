@@ -6,10 +6,14 @@ import { composeMessage, fileAttachment } from "./composer-attachments";
 import {
   copyTranscriptToClipboard,
   downloadMarkdownTranscript,
+  exportTranscriptPdf,
   formatExportDate,
   formatMessageTime,
   formatTranscriptMarkdown,
+  printTranscriptHtml,
   slugifyTranscriptFilename,
+  transcriptPdfFilename,
+  transcriptPdfHtml,
 } from "./export-transcript";
 
 describe("export-transcript", () => {
@@ -280,6 +284,55 @@ describe("export-transcript", () => {
     expect(await blob.text()).toBe("# Private transcript");
     vi.runAllTimers();
     expect(revoke).toHaveBeenCalledWith("blob:local-transcript");
+  });
+
+  it("builds a PDF document from the same transcript and escapes message markup", () => {
+    const messages: Message[] = [{
+      id: "m1",
+      role: "user",
+      kind: "text",
+      text: "see <script>alert(1)</script>",
+      at: fixedDate.getTime(),
+    }];
+    const html = transcriptPdfHtml({ title: "Coder", messages, botName: "Coder", exportedAt: fixedDate, direction: "rtl" });
+    expect(transcriptPdfFilename("Coder", fixedDate)).toBe(slugifyTranscriptFilename("Coder", fixedDate).replace(/\.md$/, ".pdf"));
+    expect(html).toContain('dir="rtl"');
+    expect(html).toContain("see &lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("Thread with Coder");
+  });
+
+  it("saves through the desktop bridge and prints when that bridge is missing or refuses", async () => {
+    const desktop = vi.fn();
+    const print = vi.fn();
+    const options = { title: "Coder", messages: [] as Message[], exportedAt: fixedDate };
+    desktop.mockResolvedValueOnce("/tmp/coder.pdf");
+    expect(await exportTranscriptPdf(options, { exportTranscriptPdf: desktop }, print)).toBe("saved");
+    expect(desktop).toHaveBeenCalledWith(expect.objectContaining({ filename: transcriptPdfFilename("Coder", fixedDate) }));
+    desktop.mockResolvedValueOnce(null);
+    expect(await exportTranscriptPdf(options, { exportTranscriptPdf: desktop }, print)).toBe("cancelled");
+    expect(print).not.toHaveBeenCalled();
+    desktop.mockRejectedValueOnce(new Error("refused"));
+    expect(await exportTranscriptPdf(options, { exportTranscriptPdf: desktop }, print)).toBe("printed");
+    expect(print).toHaveBeenCalledOnce();
+    expect(await exportTranscriptPdf(options, undefined, print)).toBe("printed");
+  });
+
+  it("prints the transcript in a hidden frame", () => {
+    const frame = {
+      title: "",
+      srcdoc: "",
+      onload: null as null | (() => void),
+      contentWindow: { focus: vi.fn(), print: vi.fn(), addEventListener: vi.fn() },
+      remove: vi.fn(),
+      setAttribute: vi.fn(),
+    };
+    const doc = { createElement: vi.fn(() => frame), body: { appendChild: vi.fn() } } as unknown as Document;
+    printTranscriptHtml("<html></html>", doc);
+    expect(frame.srcdoc).toBe("<html></html>");
+    expect(frame.setAttribute).toHaveBeenCalledWith("style", expect.stringContaining("inset-inline-end"));
+    frame.onload?.();
+    expect(frame.contentWindow.print).toHaveBeenCalledOnce();
   });
 
   it("formats dates and times consistently", () => {

@@ -1491,5 +1491,7 @@
   "place.view.ccNew.short": "Bereit",
   "place.view.ccAtOnce.short": "In Benutzung",
   "place.view.localUnavailable.short": "Nicht bereit",
-  "place.view.autoTeam.short": "Gemeinsam"
+  "place.view.autoTeam.short": "Gemeinsam",
+  "chat.export.pdf": "Als PDF herunterladen",
+  "chat.export.pdfFailed": "PDF konnte nicht gespeichert werden"
 }

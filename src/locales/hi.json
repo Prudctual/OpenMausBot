@@ -1473,5 +1473,7 @@
   "place.view.ccNew.short": "तैयार",
   "place.view.ccAtOnce.short": "इस्तेमाल में",
   "place.view.localUnavailable.short": "तैयार नहीं",
-  "place.view.autoTeam.short": "साझा"
+  "place.view.autoTeam.short": "साझा",
+  "chat.export.pdf": "PDF के रूप में डाउनलोड करें",
+  "chat.export.pdfFailed": "PDF सहेजा नहीं जा सका"
 }

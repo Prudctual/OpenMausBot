@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Download, Share } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 import { useMenuMotion } from "./MenuMotion";
 import {
   copyTranscriptToClipboard,
   downloadMarkdownTranscript,
+  exportTranscriptPdf,
   formatTranscriptMarkdown,
   slugifyTranscriptFilename,
 } from "@/lib/export-transcript";
@@ -39,6 +41,7 @@ export function ExportTranscriptMenu({
   const motion = useMenuMotion(open);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [pdfFailed, setPdfFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const resetTimer = useRef<number | null>(null);
 
@@ -101,6 +104,19 @@ export function ExportTranscriptMenu({
     const filename = slugifyTranscriptFilename(title);
     downloadMarkdownTranscript(filename, markdown);
     setOpen(false);
+  };
+
+  const handlePdf = async () => {
+    if (!hasMessages) return;
+    const result = await exportTranscriptPdf({
+      title,
+      messages,
+      botName,
+      isGroup,
+      direction: document.documentElement.dir === "rtl" ? "rtl" : "ltr",
+    }, window.ogb);
+    setPdfFailed(result === "failed");
+    if (result !== "failed") setOpen(false);
   };
 
   return (
@@ -168,6 +184,21 @@ export function ExportTranscriptMenu({
                 <Download size={14} className="shrink-0 text-ink-secondary" />
                 <span className="flex-1 truncate">Download as .md</span>
               </button>
+
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => void handlePdf()}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink hover:bg-raised/70"
+              >
+                <Download size={14} className="shrink-0 text-ink-secondary" />
+                <span className="flex-1 truncate">{t("chat.export.pdf")}</span>
+              </button>
+              {pdfFailed && (
+                <div role="status" className="px-3 py-2 text-[12px] text-ink-secondary">
+                  {t("chat.export.pdfFailed")}
+                </div>
+              )}
             </>
           )}
         </div>

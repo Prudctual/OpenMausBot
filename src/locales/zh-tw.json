@@ -2417,5 +2417,7 @@
   "place.view.ccNew.short": "就緒",
   "place.view.ccAtOnce.short": "使用中",
   "place.view.localUnavailable.short": "尚未就緒",
-  "place.view.autoTeam.short": "共用"
+  "place.view.autoTeam.short": "共用",
+  "chat.export.pdf": "下載為 PDF",
+  "chat.export.pdfFailed": "無法儲存 PDF"
 }

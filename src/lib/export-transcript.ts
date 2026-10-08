@@ -170,6 +170,83 @@ export function slugifyTranscriptFilename(title: string, date = new Date()): str
   return `${base}-transcript-${year}-${month}-${day}.md`;
 }
 
+/** Same stem as the Markdown download, with a PDF extension. */
+export function transcriptPdfFilename(title: string, date = new Date()): string {
+  return slugifyTranscriptFilename(title, date).replace(/\.md$/, ".pdf");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/** A print document for the same transcript the Markdown download uses.
+ * The body is escaped text, so a message cannot become markup. */
+export function transcriptPdfHtml(options: ExportTranscriptOptions & { direction?: "ltr" | "rtl" }): string {
+  const direction = options.direction === "rtl" ? "rtl" : "ltr";
+  const markdown = formatTranscriptMarkdown(options);
+  return [
+    "<!doctype html>",
+    `<html dir="${direction}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    `<title>${escapeHtml(options.title.trim() || "Conversation")}</title>`,
+    "<style>",
+    "body { font: 13px/1.45 system-ui, sans-serif; margin: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }",
+    "</style>",
+    "</head>",
+    `<body>${escapeHtml(markdown)}</body>`,
+    "</html>",
+  ].join("");
+}
+
+export interface TranscriptPdfRequest {
+  html: string;
+  filename: string;
+}
+
+/** Desktop saves through printToPDF. Everywhere else opens the print dialog. */
+export async function exportTranscriptPdf(
+  options: ExportTranscriptOptions & { direction?: "ltr" | "rtl" },
+  bridge?: { exportTranscriptPdf?: (request: TranscriptPdfRequest) => Promise<string | null> },
+  print: (html: string) => void = printTranscriptHtml,
+): Promise<"saved" | "cancelled" | "printed" | "failed"> {
+  const html = transcriptPdfHtml(options);
+  const filename = transcriptPdfFilename(options.title, options.exportedAt);
+  const desktop = bridge?.exportTranscriptPdf;
+  if (desktop) {
+    try {
+      const saved = await desktop({ html, filename });
+      return saved ? "saved" : "cancelled";
+    } catch {
+      // a remote window has the method but main refuses it
+    }
+  }
+  try {
+    print(html);
+    return "printed";
+  } catch {
+    return "failed";
+  }
+}
+
+/** Browser print dialog for the web build, where printToPDF is absent. */
+export function printTranscriptHtml(html: string, doc: Document = document): void {
+  const frame = doc.createElement("iframe");
+  frame.title = "Transcript";
+  frame.setAttribute("style", "position:fixed;inset-inline-end:-10000px;width:0;height:0;border:0");
+  frame.srcdoc = html;
+  doc.body.appendChild(frame);
+  frame.onload = () => {
+    frame.contentWindow?.focus();
+    frame.contentWindow?.print();
+    frame.contentWindow?.addEventListener("afterprint", () => frame.remove());
+  };
+}
+
 /**
  * Trigger a browser file download of the Markdown transcript.
  */

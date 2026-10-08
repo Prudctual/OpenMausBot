@@ -34,6 +34,7 @@ import { createLendingIndicator } from "./lending-indicator.mjs";
 let startupScreen = null;
 let desktopTray = null;
 import { collisionFreeDownloadPath, defaultSaveName, revealDownloadWhenDone, revealInFolder, withSavableFile } from "./save-file.mjs";
+import { renderTranscriptPdf, writeTranscriptPdf } from "./transcript-pdf.mjs";
 import { desktopViewerPermissionAllowed } from "./desktop-viewer-permissions.mjs";
 import { appPermissionHandlers, externalWebUrl } from "./app-permissions.mjs";
 import { writeClipboardText } from "./clipboard-write.mjs";
@@ -2522,6 +2523,41 @@ ipcMain.handle("desktop:export-diagnostics", localOnly("desktop:export-diagnosti
     }
   }
   return result.filePath;
+}));
+
+// Transcript PDF. The page sends escaped HTML; this window never runs
+// script. Cancelling the save dialog returns null.
+ipcMain.handle("desktop:export-transcript-pdf", localOnly("desktop:export-transcript-pdf", async (event, payload) => {
+  const owner = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+  const html = payload && typeof payload.html === "string" ? payload.html : "";
+  const filename = payload && typeof payload.filename === "string" ? payload.filename : "";
+  return writeTranscriptPdf({
+    html,
+    filename,
+    choosePath: async (defaultName) => {
+      const result = await dialog.showSaveDialog(owner, {
+        title: "Save transcript as PDF",
+        defaultPath: defaultName,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      });
+      if (result.canceled || !result.filePath) return null;
+      return result.filePath;
+    },
+    printHtml: (page) => renderTranscriptPdf(page, BrowserWindow),
+    writeFile: async (filePath, pdf) => {
+      if (process.platform === "win32") {
+        fs.writeFileSync(filePath, pdf);
+        return;
+      }
+      const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW;
+      const handle = fs.openSync(filePath, flags, 0o600);
+      try {
+        fs.writeFileSync(handle, pdf);
+      } finally {
+        fs.closeSync(handle);
+      }
+    },
+  });
 }));
 
 // Bots hand users files as markdown links to paths inside the OpenMausBot

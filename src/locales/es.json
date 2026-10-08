@@ -1473,5 +1473,7 @@
   "place.view.ccNew.short": "Listo",
   "place.view.ccAtOnce.short": "En uso",
   "place.view.localUnavailable.short": "No está listo",
-  "place.view.autoTeam.short": "Compartido"
+  "place.view.autoTeam.short": "Compartido",
+  "chat.export.pdf": "Descargar como PDF",
+  "chat.export.pdfFailed": "No se pudo guardar el PDF"
 }

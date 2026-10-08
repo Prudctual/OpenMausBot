@@ -2019,5 +2019,7 @@
   "place.view.ccNew.short": "Готово",
   "place.view.ccAtOnce.short": "Використовується",
   "place.view.localUnavailable.short": "Не готово",
-  "place.view.autoTeam.short": "Спільний"
+  "place.view.autoTeam.short": "Спільний",
+  "chat.export.pdf": "Завантажити як PDF",
+  "chat.export.pdfFailed": "Не вдалося зберегти PDF"
 }

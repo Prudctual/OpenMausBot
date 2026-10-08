@@ -93,6 +93,7 @@ import { ShortcutHint } from "./ShortcutHint";
 import {
   copyTranscriptToClipboard,
   downloadMarkdownTranscript,
+  exportTranscriptPdf,
   formatTranscriptMarkdown,
   slugifyTranscriptFilename,
 } from "@/lib/export-transcript";
@@ -1703,6 +1704,7 @@ function ChatHeaderMenu({ bot, messages, findOpen, onFind }: {
   const advanced = useAdvancedMode();
   const advancedOnly = advanced ? undefined : t("chat.advancedOnly");
   const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | null>(null);
+  const [pdfFailed, setPdfFailed] = useState(false);
   const hasMessages = messages.length > 0;
   const transcript = () => formatTranscriptMarkdown({ title: bot.name, messages, botName: bot.name, isGroup: false });
   const items: SidebarMenuItem[] = [
@@ -1731,6 +1733,23 @@ function ChatHeaderMenu({ bot, messages, findOpen, onFind }: {
       icon: <Download size={16} />,
       disabled: !hasMessages,
       onSelect: () => downloadMarkdownTranscript(slugifyTranscriptFilename(bot.name), transcript()),
+    },
+    {
+      key: "pdf",
+      label: t("chat.export.pdf"),
+      icon: <Download size={16} />,
+      disabled: !hasMessages,
+      keepOpen: pdfFailed,
+      trailing: pdfFailed ? <span role="status" className="text-[11px] text-ink-secondary">{t("chat.export.pdfFailed")}</span> : undefined,
+      onSelect: () => {
+        void exportTranscriptPdf({
+          title: bot.name,
+          messages,
+          botName: bot.name,
+          isGroup: false,
+          direction: document.documentElement.dir === "rtl" ? "rtl" : "ltr",
+        }, window.ogb).then((result) => setPdfFailed(result === "failed"));
+      },
     },
     ...(usage ? [{
       key: "usage",
