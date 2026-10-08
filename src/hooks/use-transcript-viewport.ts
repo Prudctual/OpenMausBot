@@ -140,7 +140,7 @@ export function useTranscriptViewport<T extends { id: string; role?: string }>({
     el.scrollTo({ top: el.scrollHeight });
     previousScrollTop.current = el.scrollTop;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pinOn is the caller's dependency list
-  }, [ownerId, messages.length, ...pinOn]);
+  }, [transcriptKey, messages.length, ...pinOn]);
 
   // Rows prepended at the front — Show earlier widening the local window, or
   // an older page arriving from the server — would push the row under the
