@@ -56,4 +56,20 @@ describe("service units", () => {
     expect(mac?.activate.join("\n")).toContain("launchctl bootstrap gui/$(id -u)");
     expect(servicePlan("win32", "C:\\x")).toBeNull();
   });
+
+  it("uses a distinct launchd label and systemd unit for Plus", () => {
+    const previous = process.env.OMB_PLUS;
+    process.env.OMB_PLUS = "1";
+    try {
+      expect(launchdPlist(spec)).toContain("<string>com.openmausbot.plus.serve</string>");
+      expect(launchdPlist(spec)).toContain("<key>OMB_PLUS</key>");
+      expect(systemdUnit(spec)).toContain("Description=OpenMausBot Plus (agentada)");
+      expect(systemdUnit(spec)).toContain("Environment=OMB_PLUS=1");
+      expect(servicePlan("darwin", "/Users/maus/.openmausbot", "/Users/maus")?.installed).toBe("/Users/maus/Library/LaunchAgents/com.openmausbot.plus.serve.plist");
+      expect(servicePlan("linux", "/home/maus/.openmausbot")?.installed).toBe("/etc/systemd/system/openmausbot-plus.service");
+    } finally {
+      if (previous === undefined) delete process.env.OMB_PLUS;
+      else process.env.OMB_PLUS = previous;
+    }
+  });
 });

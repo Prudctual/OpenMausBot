@@ -244,6 +244,31 @@ describe("local computer descriptor", () => {
     ).toBeNull();
   });
 
+  it("accepts the Plus host bundle id only when this build is Plus", () => {
+    const userData = privateUserData("linux-plus-bundle");
+    const descriptor = linuxDescriptor(userData);
+    const plus = {
+      ...descriptor,
+      mcp: {
+        ...descriptor.mcp,
+        env: { ...descriptor.mcp.env, CUA_DRIVER_HOST_BUNDLE_ID: "com.openmausbot.app.plus" },
+      },
+    };
+    expect(decodeLinuxDescriptor(plus)).toBeNull();
+    const previous = process.env.OMB_PLUS;
+    process.env.OMB_PLUS = "1";
+    try {
+      expect(decodeLinuxDescriptor(plus)?.env.CUA_DRIVER_HOST_BUNDLE_ID).toBe("com.openmausbot.app.plus");
+      expect(decodeLinuxDescriptor({
+        ...plus,
+        mcp: { ...plus.mcp, env: { ...plus.mcp.env, CUA_DRIVER_HOST_BUNDLE_ID: "com.example.other" } },
+      })).toBeNull();
+    } finally {
+      if (previous === undefined) delete process.env.OMB_PLUS;
+      else process.env.OMB_PLUS = previous;
+    }
+  });
+
   it("rejects unknown fields, stale modes, arbitrary argv, and incomplete tool surfaces", () => {
     const userData = privateUserData("linux-invalid-user-data");
     const descriptor = linuxDescriptor(userData);

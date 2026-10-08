@@ -1,0 +1,122 @@
+name: Plus macOS
+
+# Unsigned personal build of OpenMausBot Plus. One .dmg per architecture,
+# ad-hoc signed so it launches beside the official app. No notarization,
+# no update feed, no release publish.
+on:
+  push:
+    branches: [plus/mac]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    name: macOS arm64 + x64 (unsigned Plus)
+    runs-on: macos-14
+    timeout-minutes: 120
+    env:
+      OMB_PLUS: "1"
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Clean generated output
+        run: rm -rf dist dist-server dist-native release
+
+      - name: Build the app, helpers, and Plus marker
+        run: |
+          pnpm package:prepare
+          pnpm build:speech
+          pnpm build:cua
+          node scripts/write-plus-marker.mjs
+
+      - name: Package unpacked apps
+        run: pnpm exec electron-builder --mac dir --publish never --config electron-builder.plus.yml
+
+      - name: Ad-hoc sign each app
+        run: |
+          set -euo pipefail
+          for app in "release/mac-arm64/OpenMausBot Plus.app" "release/mac/OpenMausBot Plus.app"; do
+            codesign --force --deep -s - "$app"
+            codesign --verify --deep --strict "$app"
+          done
+
+      - name: Pack one UDBZ dmg per architecture
+        run: |
+          set -euo pipefail
+          pnpm exec electron-builder --mac dmg --arm64 --prepackaged "release/mac-arm64/OpenMausBot Plus.app" --publish never --config electron-builder.plus.yml
+          pnpm exec electron-builder --mac dmg --x64 --prepackaged "release/mac/OpenMausBot Plus.app" --publish never --config electron-builder.plus.yml
+
+      - name: "Gate: Plus identity, no update feed, bundled tools, single-arch natives"
+        run: |
+          set -euo pipefail
+          v=$(node -p "require('./package.json').version")
+          for spec in "arm64|release/mac-arm64|arm64" "x64|release/mac|x86_64"; do
+            IFS='|' read -r label dir lipo_arch <<<"$spec"
+            app="$dir/OpenMausBot Plus.app"
+            res="$app/Contents/Resources"
+            plist="$app/Contents/Info.plist"
+            test -d "$app" || { echo "::error::missing $app"; exit 1; }
+            id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")
+            test "$id" = "com.openmausbot.app.plus" || { echo "::error::$app bundle id is $id"; exit 1; }
+            name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$plist")
+            test "$name" = "OpenMausBot Plus" || { echo "::error::$app name is $name"; exit 1; }
+            if /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$plist" >/dev/null 2>&1; then
+              echo "::error::$app registers a URL scheme"; exit 1
+            fi
+            test ! -f "$res/app-update.yml" || { echo "::error::$app ships an update feed"; exit 1; }
+            test -f "$res/app.asar" || { echo "::error::$app is not packed into asar"; exit 1; }
+            asar_js=$(find node_modules -path '*@electron/asar/bin/asar.js' | head -1)
+            test -n "$asar_js" || { echo "::error::@electron/asar CLI not installed"; exit 1; }
+            listing=$(node "$asar_js" list "$res/app.asar")
+            if printf '%s\n' "$listing" | grep -E '(^|/)node_modules/|\.map$|\.tsbuildinfo$'; then
+              echo "::error::$app asar still contains node_modules, source maps, or build info"; exit 1
+            fi
+            test -f "$res/server/index.js" || { echo "::error::missing server in $app"; exit 1; }
+            test -f "$res/server/plus-build.json" || { echo "::error::missing Plus marker in $app"; exit 1; }
+            test -f "$res/ui/index.html" || { echo "::error::missing ui in $app"; exit 1; }
+            test -d "$res/skills" || { echo "::error::missing skills in $app"; exit 1; }
+            test -d "$res/companion" || { echo "::error::missing companion in $app"; exit 1; }
+            test -x "$res/cloudflared/cloudflared" || { echo "::error::missing cloudflared in $app"; exit 1; }
+            test -f "$res/licenses/cloudflared-LICENSE.txt" || { echo "::error::missing cloudflared license in $app"; exit 1; }
+            test -x "$res/browser-engine/agent-browser" || { echo "::error::missing browser engine in $app"; exit 1; }
+            test -x "$res/cua-driver" || { echo "::error::missing cua driver in $app"; exit 1; }
+            test -d "$res/cua-sdk" || { echo "::error::missing cua sdk in $app"; exit 1; }
+            test -x "$res/android-platform-tools/darwin/adb" || { echo "::error::missing android tools in $app"; exit 1; }
+            speech="$res/OpenMausBot Speech.app/Contents/MacOS/speech-helper"
+            test -x "$speech" || { echo "::error::missing speech helper in $app"; exit 1; }
+            speech_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$res/OpenMausBot Speech.app/Contents/Info.plist")
+            test "$speech_id" = "com.openmausbot.app.plus.speech-helper" || { echo "::error::speech bundle id is $speech_id"; exit 1; }
+            for bin in "$speech" "$res/cua-driver" "$res/cloudflared/cloudflared" "$res/android-platform-tools/darwin/adb"; do
+              test "$(lipo -archs "$bin")" = "$lipo_arch" || { echo "::error::$bin is not $lipo_arch only"; exit 1; }
+            done
+            OMB_SMOKE_DIST="$res/server" node scripts/smoke-packaged-server.mjs \
+              || { echo "::error::packaged server in $app failed to start"; exit 1; }
+            echo "ok: $label $app"
+          done
+          test -f "release/OpenMausBot-Plus-$v-arm64.dmg" || { echo "::error::missing arm64 dmg"; exit 1; }
+          test -f "release/OpenMausBot-Plus-$v-x64.dmg" || { echo "::error::missing x64 dmg"; exit 1; }
+          echo "dmg sizes:"
+          ls -l "release/OpenMausBot-Plus-$v-arm64.dmg" "release/OpenMausBot-Plus-$v-x64.dmg"
+
+      - name: "Gate: signed native browser works with an empty home"
+        run: |
+          resources="$PWD/release/mac-arm64/OpenMausBot Plus.app/Contents/Resources"
+          node scripts/smoke-browser-bundle.mjs --resources "$resources"
+          OMB_SMOKE_DIST="$resources/server" node scripts/smoke-packaged-server.mjs --browser-bundle "$resources/browser-engine"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: OpenMausBot-Plus-macOS-dmg
+          path: release/OpenMausBot-Plus-*.dmg
+          if-no-files-found: error
+          retention-days: 14

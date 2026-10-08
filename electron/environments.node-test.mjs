@@ -147,4 +147,13 @@ test("native window identity distinguishes hosted HTML, companion data, and the 
   assert.equal(env.workspaceWindowTitle(state), "OpenMausBot — Hosted: Old team (old.example)");
   assert.equal(env.workspaceWindowTitle(state, { serverName: "Office", endpoint: "https://c-office.openmausbot.com" }), "OpenMausBot — Connected to: Office (c-office.openmausbot.com)");
   assert.equal(env.workspaceWindowTitle(env.withActive(state, "local")), "OpenMausBot");
+  const previous = process.env.OMB_PLUS;
+  process.env.OMB_PLUS = "1";
+  try {
+    assert.equal(env.workspaceWindowTitle({ environments: [], activeId: "local" }), "OpenMausBot Plus");
+  } finally {
+    if (previous === undefined) delete process.env.OMB_PLUS;
+    else process.env.OMB_PLUS = previous;
+  }
+  assert.equal(env.workspaceWindowTitle({ environments: [], activeId: "local" }), "OpenMausBot");
 });

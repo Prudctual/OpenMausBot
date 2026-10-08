@@ -10,6 +10,7 @@
 // electron-updater is vendored (electron/vendor/electron-updater.cjs) because
 // the packaged app ships no node_modules.
 import { app, clipboard, ipcMain } from "electron";
+import { isPlusBuild } from "./plus-build.mjs";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
@@ -107,8 +108,9 @@ export function attachUpdaterWindow(mainWindow) {
 }
 
 export function startUpdater() {
-  // dev / unsigned builds can't auto-update — leave the banner dormant
-  if (!app.isPackaged) {
+  // dev / unsigned builds can't auto-update — leave the banner dormant.
+  // Plus never talks to the official feed, even when it is packaged.
+  if (!app.isPackaged || isPlusBuild()) {
     updaterCoordinator = null;
     setState({ status: "idle" });
     return;

@@ -3,7 +3,7 @@
 // current releases; TCC reads the Info.plist belonging to the executable's
 // bundle and terminates the process before Swift can recover when it is absent.
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -14,10 +14,27 @@ const resourcesDir = path.join(electronDir, "resources");
 export const speechHelperBundle = path.join(resourcesDir, "OpenMausBot Speech.app");
 export const speechHelperBinary = path.join(speechHelperBundle, "Contents", "MacOS", "speech-helper");
 
+/** Distinct TCC identity for the Plus build. The source plist stays official. */
+export function plusSpeechInfoPlist(xml) {
+  return xml
+    .replace(
+      "<string>com.openmausbot.app.speech-helper</string>",
+      "<string>com.openmausbot.app.plus.speech-helper</string>",
+    )
+    .replace("<string>OpenMausBot</string>", "<string>OpenMausBot Plus</string>")
+    .replace("<string>OpenMausBot Speech</string>", "<string>OpenMausBot Plus Speech</string>")
+    .replace("OpenMausBot listens", "OpenMausBot Plus listens")
+    .replace("OpenMausBot converts", "OpenMausBot Plus converts");
+}
+
 export function buildSpeechHelper() {
   const contents = path.join(speechHelperBundle, "Contents");
   mkdirSync(path.join(contents, "MacOS"), { recursive: true });
-  copyFileSync(path.join(resourcesDir, "speech-helper-Info.plist"), path.join(contents, "Info.plist"));
+  const plistPath = path.join(contents, "Info.plist");
+  copyFileSync(path.join(resourcesDir, "speech-helper-Info.plist"), plistPath);
+  if (process.env.OMB_PLUS === "1") {
+    writeFileSync(plistPath, plusSpeechInfoPlist(readFileSync(plistPath, "utf8")));
+  }
   // The mac app ships for arm64 and x64, and the helper rides inside both
   // bundles, so it must be universal — bare `swiftc` builds host-arch only,
   // which inside an Intel app is a dictation helper that cannot launch.
