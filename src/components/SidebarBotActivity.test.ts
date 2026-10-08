@@ -44,6 +44,8 @@ describe("header activity", () => {
   it("marks running or queued work and leaves unread alone", () => {
     expect(attentionHasRunningWork([entry({ unread: true })])).toBe(false);
     expect(attentionHasRunningWork([entry({ activity: "waiting-on-you" })])).toBe(false);
+    expect(attentionHasRunningWork([entry({ activity: "waiting-on-you", busy: true })])).toBe(false);
+    expect(attentionHasRunningWork([entry({ activity: "waiting-on-you", busy: true, queued: true })])).toBe(true);
     expect(attentionHasRunningWork([entry({ activity: "working" })])).toBe(true);
     expect(attentionHasRunningWork([entry({ busy: true })])).toBe(true);
     expect(attentionHasRunningWork([entry({ queued: true })])).toBe(true);

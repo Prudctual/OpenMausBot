@@ -97,7 +97,7 @@ export function attentionTriggerLabel(count: number): string {
 /** Work in flight or waiting its turn. Unread and "needs you" stay on the
  * count badge; this is only the running and queued subset of that list. */
 export function attentionHasRunningWork(entries: readonly AttentionThread[]): boolean {
-  return entries.some((entry) => entry.task.activity === "working" || entry.task.busy === true || entry.task.queued === true);
+  return entries.some((entry) => entry.task.activity === "working" || (entry.task.busy === true && entry.task.activity !== "waiting-on-you") || entry.task.queued === true);
 }
 
 /** Whether a task needs the person right now, and how to show it — the one
