@@ -4,6 +4,7 @@
 // committing through React. Long-lived indicators must stay this cheap.
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
+import { retryCountdownText, type RetryActivity } from "@/lib/live-activity";
 import { formatElapsed } from "@/lib/working-time";
 
 export function WorkingDots({ size = 4, className }: { size?: number; className?: string }) {
@@ -16,6 +17,27 @@ export function WorkingDots({ size = 4, className }: { size?: number; className?
           style={{ width: size, height: size, animationDelay: `${delay}ms` }}
         />
       ))}
+    </span>
+  );
+}
+
+/** Self-ticking backoff readout. The text node updates once a second so a
+ * long wait does not re-render the transcript. */
+export function RetryCountdownLabel({ retry, className }: { retry: RetryActivity; className?: string }) {
+  const node = useRef<HTMLSpanElement>(null);
+  const { attempt, max, delaySec, startedAt } = retry;
+  useEffect(() => {
+    const current: RetryActivity = { attempt, max, delaySec, startedAt };
+    const tick = () => {
+      if (node.current) node.current.textContent = retryCountdownText(current, Date.now());
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [attempt, max, delaySec, startedAt]);
+  return (
+    <span ref={node} className={cn("thinking-shimmer animate-shimmer tabular-nums text-[13px]", className)}>
+      {retryCountdownText(retry, Date.now())}
     </span>
   );
 }

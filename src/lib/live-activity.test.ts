@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { liveActivityLabel } from "./live-activity";
+import { liveActivityLabel, parseRetryActivity, retryCountdownText, retrySecondsRemaining } from "./live-activity";
 import type { Message } from "@/state/store";
 
 const activity = (name: string, extra: Partial<NonNullable<Message["tool"]>> = {}): Message => ({
@@ -31,6 +31,22 @@ describe("liveActivityLabel", () => {
     expect(liveActivityLabel(activity("ask_bot"))).toBe("Asking a teammate");
     expect(liveActivityLabel(activity("list_rooms"))).toBe("Checking the groups");
     expect(liveActivityLabel(activity("post_to_room"))).toBe("Posting in a group");
+  });
+
+  it("names a retry backoff even after the chip is marked done", () => {
+    const chip = activity("retrying — attempt 2/3 in 5s — overloaded", { ok: true });
+    chip.at = 10_000;
+    expect(liveActivityLabel(chip)).toBe("Retrying, attempt 2/3");
+    expect(parseRetryActivity(chip)).toEqual({ attempt: 2, max: 3, delaySec: 5, startedAt: 10_000 });
+    expect(retrySecondsRemaining(parseRetryActivity(chip)!, 12_400)).toBe(3);
+    expect(retryCountdownText(parseRetryActivity(chip)!, 12_400)).toBe("Retrying, attempt 2/3, 3s");
+    expect(retrySecondsRemaining({ delaySec: 5, startedAt: 0 }, 12_400)).toBe(5);
+    expect(retrySecondsRemaining(parseRetryActivity(chip)!, 20_000)).toBe(0);
+  });
+
+  it("leaves an ordinary finished tool as thinking", () => {
+    expect(parseRetryActivity(activity("Read", { ok: true }))).toBeNull();
+    expect(liveActivityLabel(activity("retrying the upload", { ok: true }))).toBe("Thinking");
   });
 
   it("does not present bot-to-bot communication chips as the active action", () => {

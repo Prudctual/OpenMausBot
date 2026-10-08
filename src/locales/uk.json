@@ -511,6 +511,8 @@
   "chat.speak.stop": "Зупинити озвучення",
   "chat.speak.read": "Прочитати вголос",
   "chat.activity.thinking": "Думає",
+  "chat.activity.retrying": "Повторюю, спроба {attempt}/{max}, ще {seconds} с",
+  "chat.activity.retryingAttempt": "Повторюю, спроба {attempt}/{max}",
   "chat.activity.working": "Працює",
   "chat.activity.runCommand": "Виконує команду",
   "chat.activity.readFile": "Читає файл",

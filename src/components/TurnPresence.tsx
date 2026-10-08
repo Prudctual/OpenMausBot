@@ -3,7 +3,8 @@
 // the canonical transcript row performs the settle-in animation above it.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { WorkingTimer } from "@/components/WorkingIndicator";
+import { RetryCountdownLabel, WorkingTimer } from "@/components/WorkingIndicator";
+import type { RetryActivity } from "@/lib/live-activity";
 
 export function TurnPresence({
   avatar,
@@ -11,6 +12,7 @@ export function TurnPresence({
   label = "Thinking",
   answering = false,
   since = null,
+  retry = null,
 }: {
   avatar: ReactNode;
   visible: boolean;
@@ -18,6 +20,8 @@ export function TurnPresence({
   answering?: boolean;
   /** Turn start (epoch ms) — shows a self-ticking elapsed readout while working. */
   since?: number | null;
+  /** A retry backoff replaces the verb and the elapsed timer with a countdown. */
+  retry?: RetryActivity | null;
 }) {
   const [mounted, setMounted] = useState(visible);
   const [phase, setPhase] = useState<"think" | "answer" | "out">(answering ? "answer" : "think");
@@ -56,10 +60,14 @@ export function TurnPresence({
         {avatar}
         {showWorking ? (
           <span className="flex items-baseline gap-2 leading-none">
-            <span className="thinking-shimmer animate-shimmer text-[13px]">
-              {label}
-            </span>
-            {since !== null && (
+            {retry ? (
+              <RetryCountdownLabel retry={retry} />
+            ) : (
+              <span className="thinking-shimmer animate-shimmer text-[13px]">
+                {label}
+              </span>
+            )}
+            {since !== null && !retry && (
               <WorkingTimer since={since} className="text-[11.5px] text-ink-tertiary" />
             )}
           </span>

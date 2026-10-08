@@ -63,7 +63,7 @@ import { showToolCallsEnabled, skillAuthoringEnabled } from "@/lib/feature-flags
 import { normalizeState, stateForBot } from "@/lib/mascot";
 import { peerLine, type PeerLine } from "@/lib/peer-message";
 import { showWorkingDots } from "@/lib/turn-tail";
-import { liveActivityLabel } from "@/lib/live-activity";
+import { liveActivityLabel, parseRetryActivity } from "@/lib/live-activity";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { VoiceNoteBubble, type VoiceNoteAttachment } from "./VoiceNoteBubble";
 import { RawMarkdownView, RawToggleAction } from "./RawMarkdownToggle";
@@ -1231,6 +1231,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const lastMessage = messages.at(-1);
   const toolInFlight = lastMessage?.kind === "activity" && lastMessage.tool?.ok === undefined;
   const activityLabel = liveActivityLabel(lastMessage);
+  const retryActivity = parseRetryActivity(lastMessage);
   const waiting = Boolean(
     bot.busy &&
       bot.activity !== "waiting-on-you" &&
@@ -1568,6 +1569,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
             label={activityLabel}
             answering={popping !== null}
             since={busySince}
+            retry={retryActivity}
           />
         </div>
       </div>
