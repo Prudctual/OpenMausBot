@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -11,6 +11,7 @@ import {
   agentBrowserIntegration,
   browserEngineEncryptionKey,
   browserEngineStatus,
+  describeBrowserEngine,
   browserRestoreKey,
   browserSessionId,
   clearBrowserSessionState,
@@ -402,6 +403,36 @@ describe("finding the browser engine", () => {
     // an override that does not exist is an error, not a silent fallback
     expect(resolveAgentBrowserBinary({ dataDir, env: { ...env, OMB_AGENT_BROWSER_PATH: join(dataDir, "missing", name) }, exists })).toBeNull();
     expect(browserEngineStatus({ dataDir, env, exists })).toMatchObject({ kind: "ready", binaryPath: pinned, version: agentBrowserReleaseVersion(resolveAgentBrowserReleaseAsset()) });
+  });
+
+  it("reports an unmanaged agent-browser's real version and warns when it is not the pin", () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "omb-engine-unmanaged-"));
+    scratch.push(dataDir);
+    const name = process.platform === "win32" ? "agent-browser.exe" : "agent-browser";
+    const binary = resolve(join(dataDir, "bin"), name);
+    const exists = (file: string) => file === binary;
+    const env = { PATH: join(dataDir, "bin") };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const mismatched = browserEngineStatus({ dataDir, env, exists, versionOf: () => "0.38.1" });
+      expect(mismatched).toMatchObject({
+        kind: "ready",
+        binaryPath: binary,
+        version: "0.38.1",
+        warning: expect.stringContaining(AGENT_BROWSER_VERSION),
+      });
+      expect(describeBrowserEngine(mismatched)).toContain("0.38.1");
+      expect(describeBrowserEngine(mismatched)).toContain(AGENT_BROWSER_VERSION);
+      expect(warn).toHaveBeenCalledOnce();
+      warn.mockClear();
+      const matched = browserEngineStatus({ dataDir, env, exists, versionOf: () => AGENT_BROWSER_VERSION });
+      expect(matched).toEqual({ kind: "ready", binaryPath: binary, version: AGENT_BROWSER_VERSION });
+      expect(warn).not.toHaveBeenCalled();
+      const unknown = browserEngineStatus({ dataDir, env, exists, versionOf: () => null });
+      expect(unknown).toMatchObject({ kind: "ready", version: "unknown", warning: expect.stringContaining("unknown") });
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("knows every target Vercel publishes, and picks the musl build on Alpine", () => {

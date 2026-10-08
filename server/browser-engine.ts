@@ -8,7 +8,7 @@
 //
 // Fail closed, say why: a missing engine reports `unavailable` with a
 // reason a person can act on, never a silently browserless bot.
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chmodSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -175,8 +175,35 @@ export async function prepareBrowserSessionState(
 }
 
 export type BrowserEngineStatus =
-  | { kind: "ready"; binaryPath: string; version: string }
+  | { kind: "ready"; binaryPath: string; version: string; warning?: string }
   | { kind: "unavailable"; reason: string; installable: boolean };
+
+/** One probe per binary mtime. Status is read on computer selection, so a
+ * PATH install must not spawn `--version` on every call. */
+const probedVersions = new Map<string, { mtimeMs: number; version: string | null }>();
+const warnedBrowserVersions = new Set<string>();
+
+function probedAgentBrowserVersion(binaryPath: string): string | null {
+  let mtimeMs = 0;
+  try { mtimeMs = statSync(binaryPath).mtimeMs; }
+  catch { return null; }
+  const cached = probedVersions.get(binaryPath);
+  if (cached && cached.mtimeMs === mtimeMs) return cached.version;
+  let version: string | null = null;
+  try {
+    const output = execFileSync(binaryPath, ["--version"], {
+      encoding: "utf8",
+      timeout: 1_500,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    version = String(output).match(/\d+\.\d+\.\d+(?:-[\w.]+)?/)?.[0] ?? null;
+  } catch {
+    version = null;
+  }
+  probedVersions.set(binaryPath, { mtimeMs, version });
+  return version;
+}
 
 function executableName(platform: NodeJS.Platform = process.platform): string {
   return platform === "win32" ? "agent-browser.exe" : "agent-browser";
@@ -217,6 +244,9 @@ interface BrowserLookupOptions {
    * node_modules/.bin, a dev machine's global wrapper — is not the engine
    * whose saved sessions this process manages. */
   managedOnly?: boolean;
+  /** Installed version of an unmanaged binary. Tests pass this so status
+   * never spawns a fake path. Production probes `--version` once per mtime. */
+  versionOf?: (binaryPath: string) => string | null;
 }
 
 function packagedBrowser(options: BrowserLookupOptions) {
@@ -388,8 +418,22 @@ export function browserEngineStatus(options: BrowserLookupOptions = {}): Browser
   if (binaryPath) {
     const platform = options.platform ?? process.platform;
     const managed = binaryPath === bundle?.engine || binaryPath === pinnedBinaryPath(options.dataDir, platform, options.arch);
-    const version = managed ? agentBrowserReleaseVersion(resolveAgentBrowserReleaseAsset(platform, options.arch)) : AGENT_BROWSER_VERSION;
-    return { kind: "ready", binaryPath, version };
+    if (managed) {
+      const version = agentBrowserReleaseVersion(resolveAgentBrowserReleaseAsset(platform, options.arch));
+      return { kind: "ready", binaryPath, version };
+    }
+    // An unmanaged binary used to be labelled with the pin, which hid a
+    // global install of a different agent-browser (the stall in #1941).
+    const actual = options.versionOf ? options.versionOf(binaryPath) : probedAgentBrowserVersion(binaryPath);
+    const version = actual ?? "unknown";
+    const warning = version === AGENT_BROWSER_VERSION
+      ? undefined
+      : `installed agent-browser ${version} is not the pinned ${AGENT_BROWSER_VERSION}`;
+    if (warning && !warnedBrowserVersions.has(`${binaryPath}\0${version}`)) {
+      warnedBrowserVersions.add(`${binaryPath}\0${version}`);
+      console.warn(`browser engine: ${warning} at ${binaryPath}. A different build can stall browser tools; install ${AGENT_BROWSER_VERSION}.`);
+    }
+    return { kind: "ready", binaryPath, version, ...(warning ? { warning } : {}) };
   }
   if (bundle && (options.exists ?? existsSync)(bundle.directory)) {
     return { kind: "unavailable", reason: "The desktop browser bundle is incomplete. Reinstall or update OpenMausBot to repair it.", installable: false };
@@ -552,7 +596,7 @@ export function browserSessionId(botId: string, partitionId: string): string {
 
 export function describeBrowserEngine(status: BrowserEngineStatus): string {
   return status.kind === "ready"
-    ? `browser engine: agent-browser ${status.version} at ${status.binaryPath}`
+    ? `browser engine: agent-browser ${status.version} at ${status.binaryPath}${status.warning ? ` (${status.warning})` : ""}`
     : `browser engine: unavailable (${status.reason})`;
 }
 
