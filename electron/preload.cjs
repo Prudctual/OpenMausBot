@@ -263,6 +263,9 @@ const bridge = {
   /** Writes the redacted diagnostics report to a user-chosen file; resolves
    * the path, or null when the save dialog was cancelled. */
   exportDiagnostics: () => ipcRenderer.invoke("desktop:export-diagnostics"),
+  /** Saves a transcript PDF on this computer. Absent on a remote page, which
+   * prints from the browser instead. */
+  exportTranscriptPdf: (request) => ipcRenderer.invoke("desktop:export-transcript-pdf", request),
   /** Ask where to save a bot-created file (inside ~/.openmausbot), copy it
    * there and reveal it. Returns the chosen path, or null if the user
    * cancelled the dialog. The chat bubble shows the

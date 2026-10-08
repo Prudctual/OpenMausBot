@@ -1480,5 +1480,7 @@
   "place.view.autoTeam.short": "साझा",
   "settings.config.ignored": "{path} पढ़ा नहीं जा सका और अनदेखा किया जा रहा है: {reason}",
   "settings.config.copyPath": "पथ कॉपी करें",
-  "settings.config.copied": "कॉपी हो गया"
+  "settings.config.copied": "कॉपी हो गया",
+  "chat.export.pdf": "PDF के रूप में डाउनलोड करें",
+  "chat.export.pdfFailed": "PDF सहेजा नहीं जा सका"
 }

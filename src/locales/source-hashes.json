@@ -1501,7 +1501,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "es": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -2985,7 +2987,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "fr": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -4469,7 +4473,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "hi": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -5953,7 +5959,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "ja": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -7439,7 +7447,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "pt-br": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -8936,7 +8946,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "zh": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -11371,7 +11383,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "zh-tw": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -13799,7 +13813,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "uk": {
       "pro.getPro": "12657108fe5682e937f179e5f394191b99fad614dbb3bf8759376d5da35d4992",
@@ -15829,7 +15845,9 @@
       "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
       "settings.config.ignored": "3edb034cecf139f6e452243f7684c7bcb55ef37f3365d3c9c778226aa72dca1f",
       "settings.config.copyPath": "720ff4160412b943370afdb8fc1c082ff057d54713d5fb4b4b7a9634bfabf5fe",
-      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3"
+      "settings.config.copied": "8d525e5f158b9afe05f3122af363ac67763bdc4e1395b46597b320c289766ce3",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     }
   }
 }

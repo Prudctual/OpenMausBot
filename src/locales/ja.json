@@ -1482,5 +1482,7 @@
   "place.view.autoTeam.short": "共有",
   "settings.config.ignored": "{path} を読み込めなかったため無視しています: {reason}",
   "settings.config.copyPath": "パスをコピー",
-  "settings.config.copied": "コピーしました"
+  "settings.config.copied": "コピーしました",
+  "chat.export.pdf": "PDFでダウンロード",
+  "chat.export.pdfFailed": "PDFを保存できませんでした"
 }

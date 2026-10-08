@@ -1094,6 +1094,8 @@
   "chat.export.copied": "Copied",
   "chat.export.copyFailed": "Copy failed — try download",
   "chat.export.download": "Download as .md",
+  "chat.export.pdf": "Download as PDF",
+  "chat.export.pdfFailed": "Could not save the PDF",
   "chat.usage.menu": "Usage",
   "chat.conversationWith": "Conversation with {name}",
   "chat.showEarlier": "Show earlier messages ({count} more)",

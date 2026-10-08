@@ -296,6 +296,9 @@ const __APP_VERSION__: string;
       /** Writes the redacted diagnostics report to a user-chosen file;
        * resolves the path, or null when cancelled. */
       exportDiagnostics?(): Promise<string | null>;
+      /** Saves a transcript PDF through printToPDF. Resolves the path, or
+       * null when the save dialog is cancelled. Local app only. */
+      exportTranscriptPdf?(request: { html: string; filename: string }): Promise<string | null>;
       /** Asks where to save a bot-created file (inside ~/.openmausbot), copies
        * it there and reveals it. Resolves the chosen path, or null if the
        * user cancelled the dialog. */

@@ -1480,5 +1480,7 @@
   "place.view.autoTeam.short": "Compartido",
   "settings.config.ignored": "{path} no se pudo leer y se está ignorando: {reason}",
   "settings.config.copyPath": "Copiar ruta",
-  "settings.config.copied": "Copiado"
+  "settings.config.copied": "Copiado",
+  "chat.export.pdf": "Descargar como PDF",
+  "chat.export.pdfFailed": "No se pudo guardar el PDF"
 }

@@ -2431,5 +2431,7 @@
   "place.view.autoTeam.short": "共享",
   "settings.config.ignored": "无法读取 {path}，已忽略：{reason}",
   "settings.config.copyPath": "复制路径",
-  "settings.config.copied": "已复制"
+  "settings.config.copied": "已复制",
+  "chat.export.pdf": "下载为 PDF",
+  "chat.export.pdfFailed": "无法保存 PDF"
 }
