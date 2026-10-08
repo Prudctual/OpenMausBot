@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createChatToolApproval } from "./chat-tool-approval.ts";
+import { chatSessionOperationKey, createChatToolApproval } from "./chat-tool-approval.ts";
 
 afterEach(() => vi.useRealTimers());
 
@@ -183,5 +183,30 @@ describe("chat tool question lifecycle", () => {
     expect(gate.answer(request.id, "allow")).toBe("allowed-once");
 
     await expect(allowed).resolves.toBe(true);
+  });
+
+  it("remembers a session allow only for the exact operation the card carried", async () => {
+    const remember = vi.fn();
+    const open = vi.fn();
+    const gate = createChatToolApproval({
+      signal: new AbortController().signal, open, resolved: vi.fn(), openQuestion: vi.fn(), resolvedQuestion: vi.fn(), remember,
+    });
+    const once = gate.ask("fx_write", "note", "fx_write\n{\"note\":\"one\"}");
+    const session = gate.ask("fx_write", "note", "fx_write\n{\"note\":\"two\"}");
+    const plain = gate.ask("fx_write", "note");
+    const ids = open.mock.calls.map(([request]) => request.id as string);
+
+    expect(gate.answer(ids[0]!, "allow")).toBe("allowed-once");
+    expect(gate.answer(ids[1]!, "allow", undefined, true)).toBe("allowed-once");
+    expect(gate.answer(ids[2]!, "allow", undefined, true)).toBe("allowed-once");
+    expect(remember).toHaveBeenCalledExactlyOnceWith("fx_write\n{\"note\":\"two\"}");
+    await expect(Promise.all([once, session, plain])).resolves.toEqual([true, true, true]);
+
+    const same = chatSessionOperationKey("fx_write", { note: "one", extra: true });
+    expect(same).toBe(chatSessionOperationKey("fx_write", { extra: true, note: "one" }));
+    expect(chatSessionOperationKey("computer_click", { x: 1 })).toBeNull();
+    expect(chatSessionOperationKey("browser_navigate", { url: "https://example.test" })).toBeNull();
+    expect(chatSessionOperationKey("composio_gmail_send_email", { to: "a@example.test" })).toBeNull();
+    expect(chatSessionOperationKey("ask_user", { questions: [] })).toBeNull();
   });
 });
