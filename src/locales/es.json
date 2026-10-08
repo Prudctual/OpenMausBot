@@ -358,6 +358,8 @@
   "chat.speak.stop": "Dejar de leer",
   "chat.speak.read": "Leer esto en voz alta",
   "chat.activity.thinking": "Pensando",
+  "chat.activity.retrying": "Reintentando, intento {attempt}/{max}, {seconds}s",
+  "chat.activity.retryingAttempt": "Reintentando, intento {attempt}/{max}",
   "chat.activity.working": "Trabajando",
   "chat.activity.runCommand": "Ejecutando un comando",
   "chat.activity.readFile": "Leyendo un archivo",

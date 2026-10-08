@@ -70,7 +70,7 @@ import { shortPath } from "@/lib/short-path";
 import { useComposerDockPad } from "@/lib/composer-dock";
 import { GlassBar, GlassScrollFrame } from "./GlassScrollFrame";
 import { awaitedMemberId, showWorkingDots } from "@/lib/turn-tail";
-import { liveActivityLabel } from "@/lib/live-activity";
+import { liveActivityLabel, parseRetryActivity } from "@/lib/live-activity";
 import { splitTranscriptAttachments } from "@/lib/composer-attachments";
 import { useTranscriptViewport } from "@/hooks/use-transcript-viewport";
 import { appendDraftAttachments, useReplyDraft } from "@/lib/drafts";
@@ -1133,6 +1133,7 @@ export function GroupView({ group }: { group: Group }) {
   const lastGroupMessage = group.messages.at(-1);
   const toolInFlight = lastGroupMessage?.kind === "activity" && lastGroupMessage.tool?.ok === undefined;
   const activityLabel = liveActivityLabel(lastGroupMessage);
+  const retryActivity = parseRetryActivity(lastGroupMessage);
   // A member busy elsewhere takes its turn when free; until then the room
   // works with no speaker, and the presence row names who it is waiting on.
   const awaited = members.find(
@@ -1544,6 +1545,7 @@ export function GroupView({ group }: { group: Group }) {
               label={activityLabel}
               answering={popping !== null}
               since={speaker ? group.turnStartedAt ?? null : null}
+              retry={retryActivity}
             />
           )}
         </div>

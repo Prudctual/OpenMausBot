@@ -358,6 +358,8 @@
   "chat.speak.stop": "読み上げを停止",
   "chat.speak.read": "これを読み上げる",
   "chat.activity.thinking": "考え中",
+  "chat.activity.retrying": "再試行中、{attempt}/{max} 回目、あと {seconds}秒",
+  "chat.activity.retryingAttempt": "再試行中、{attempt}/{max} 回目",
   "chat.activity.working": "作業中",
   "chat.activity.runCommand": "コマンドを実行中",
   "chat.activity.readFile": "ファイルを読み中",

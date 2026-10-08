@@ -677,6 +677,8 @@
   "chat.speak.stop": "停止朗读",
   "chat.speak.read": "朗读这条",
   "chat.activity.thinking": "思考中",
+  "chat.activity.retrying": "正在重试，第 {attempt}/{max} 次，还剩 {seconds} 秒",
+  "chat.activity.retryingAttempt": "正在重试，第 {attempt}/{max} 次",
   "chat.activity.working": "工作中",
   "chat.activity.runCommand": "正在执行命令",
   "chat.activity.readFile": "正在读取文件",

@@ -445,6 +445,8 @@
   "chat.speak.stop": "Parar a leitura",
   "chat.speak.read": "Ler isto em voz alta",
   "chat.activity.thinking": "Pensando",
+  "chat.activity.retrying": "Tentando de novo, tentativa {attempt}/{max}, {seconds}s",
+  "chat.activity.retryingAttempt": "Tentando de novo, tentativa {attempt}/{max}",
   "chat.activity.working": "Trabalhando",
   "chat.activity.runCommand": "Executando um comando",
   "chat.activity.readFile": "Lendo um arquivo",

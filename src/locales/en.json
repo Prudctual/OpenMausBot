@@ -1170,6 +1170,8 @@
   "chat.voiceNote.seek": "Seek voice note",
   "chat.voiceNote.onLiveCall": "Voice notes can't play during a Live call.",
   "chat.activity.thinking": "Thinking",
+  "chat.activity.retrying": "Retrying, attempt {attempt}/{max}, {seconds}s",
+  "chat.activity.retryingAttempt": "Retrying, attempt {attempt}/{max}",
   "chat.activity.working": "Working",
   "chat.activity.runCommand": "Running a command",
   "chat.activity.readFile": "Reading a file",
