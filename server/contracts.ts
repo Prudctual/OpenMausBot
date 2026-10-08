@@ -341,7 +341,9 @@ export interface ProviderAdapter {
       /** "Always allow this session": hand the provider its own remembered
        * approval (Claude's suggested permission rules, ACP `allow_always`)
        * so it stops asking about this operation for the rest of the
-       * session. The app keeps no grant of its own. */
+       * session. The chat-completions runtime has no provider session to
+       * hand it to, so it keeps that one exact operation in memory for the
+       * thread until the process drops it. It is not written to disk. */
       always?: boolean;
     },
   ): Promise<RequestOutcome>;

@@ -106,12 +106,9 @@ describe("createOpenAIChatRuntime one-shot usage", () => {
 });
 
 describe("createOpenAIChatRuntime tool approvals", () => {
-  // A bot on an OpenAI-compatible engine used to stop for a card on EVERY
-  // tool call, with no way out: this family has no provider reviewer, so
-  // Auto behaves like Ask; the card offers no session-wide allow; and the
-  // "Always allowed" list only ever fills from peer-comms grants. Full
-  // access is the person's explicit grant to answer every prompt, and with
-  // no provider to hand it to, the runtime has to honour it itself.
+  // A bot on an OpenAI-compatible engine has no provider reviewer, so Auto
+  // behaves like Ask. Full access answers every prompt. Always allow this
+  // session remembers that one exact call in memory for the thread.
   const mcpDir: string[] = [];
   afterEach(() => { for (const d of mcpDir.splice(0)) rmSync(d, { recursive: true, force: true }); });
 
@@ -323,6 +320,159 @@ describe("createOpenAIChatRuntime tool approvals", () => {
       expect(completed.stopReason).toBe("tool_error");
       expect(events.some((event) => event.type === "runtime.error" && /One or more tool operations failed/.test((event as any).message ?? ""))).toBe(true);
       expect(events.some((event) => event.type === "cap.exhausted")).toBe(false);
+    } finally {
+      await instance.dispose();
+    }
+  }, 20_000);
+
+  const noteServer = (receipt: string) => {
+    const dir = mkdtempSync(join(tmpdir(), "omb-chat-session-"));
+    mcpDir.push(dir);
+    const script = join(dir, "fake-mcp.mjs");
+    writeFileSync(script, `#!/usr/bin/env node
+      import { appendFileSync } from "node:fs";
+      const send = (m) => process.stdout.write(JSON.stringify(m) + "\\n");
+      let buffer = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", (chunk) => {
+        buffer += chunk;
+        let nl;
+        while ((nl = buffer.indexOf("\\n")) !== -1) {
+          const line = buffer.slice(0, nl); buffer = buffer.slice(nl + 1);
+          const m = JSON.parse(line);
+          if (m.method === "initialize") send({jsonrpc:"2.0",id:m.id,result:{protocolVersion:"2024-11-05",capabilities:{tools:{}}}});
+          else if (m.method === "tools/list") send({jsonrpc:"2.0",id:m.id,result:{tools:[{name:"write",description:"Fixture write",inputSchema:{type:"object",properties:{note:{type:"string"}},additionalProperties:false}}]}});
+          else if (m.method === "tools/call") {
+            appendFileSync(process.env.RECEIPT, JSON.stringify(m.params.arguments) + "\\n");
+            send({jsonrpc:"2.0",id:m.id,result:{content:[{type:"text",text:"done"}]}});
+          }
+        }
+      });
+    `);
+    chmodSync(script, 0o755);
+    return { command: script, args: [], env: { RECEIPT: receipt } };
+  };
+
+  const toolStream = (id: string, note: string) =>
+    `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id, type: "function", function: { name: "fx_write", arguments: JSON.stringify({ note }) } }] } }] })}\n\n`
+    + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n';
+  const finalStream = 'data: {"choices":[{"index":0,"delta":{"content":"done."}}]}\n\n'
+    + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n';
+
+  it("remembers one exact call for the thread and asks again when the arguments change", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omb-chat-session-receipt-"));
+    mcpDir.push(dir);
+    const receipt = join(dir, "calls.txt");
+    const queue: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      if (!String(input).endsWith("/chat/completions")) return new Response(JSON.stringify({ data: [] }));
+      const next = queue.shift();
+      if (!next) throw new Error("unexpected completion");
+      return sse(next);
+    }));
+    const instance = await OpenAICompatDriver.create({
+      instanceId: "session-allow", displayName: "Compat", enabled: true,
+      config: OpenAICompatDriver.decodeConfig({ url: "https://api.example.test/v1", apiKeyEnv: "K", model: "fixture" }),
+      environment: { K: "synthetic" },
+    });
+    const events: RuntimeEvent[] = [];
+    instance.adapter.onEvent((event) => events.push(event));
+    const integrations = { custom: { fx: noteServer(receipt) } };
+    const openedSince = (mark: number) => events.slice(mark).filter((event) => event.type === "request.opened");
+    const waitOpened = (mark: number) => vi.waitFor(() => {
+      const found = openedSince(mark)[0];
+      if (!found || found.type !== "request.opened") throw new Error("waiting for the permission card");
+      return found;
+    }, { timeout: 10_000 });
+    const waitDone = (count: number) => vi.waitFor(() => {
+      if (events.filter((event) => event.type === "turn.completed").length < count) throw new Error("turn still running");
+    }, { timeout: 10_000 });
+    try {
+      queue.push(toolStream("c1", "one"), finalStream);
+      await instance.adapter.sendTurn({ threadId: "remember", text: "write the note", approvalMode: "ask", integrations });
+      const first = await waitOpened(0);
+      expect(first).toMatchObject({ requestType: "permission", tool: "fx_write", allowSession: true });
+      expect(await instance.adapter.respondToRequest("remember", first.requestId!, { behavior: "allow", always: true })).toBe("allowed-once");
+      await waitDone(1);
+      expect(readFileSync(receipt, "utf8")).toBe('{"note":"one"}\n');
+
+      const afterRemember = events.length;
+      queue.push(toolStream("c2", "one"), finalStream);
+      await instance.adapter.sendTurn({ threadId: "remember", text: "write the same note", approvalMode: "ask", integrations });
+      await waitDone(2);
+      expect(openedSince(afterRemember)).toEqual([]);
+      expect(readFileSync(receipt, "utf8")).toBe('{"note":"one"}\n{"note":"one"}\n');
+
+      const beforeDifferent = events.length;
+      queue.push(toolStream("c3", "two"));
+      await instance.adapter.sendTurn({ threadId: "remember", text: "write a different note", approvalMode: "ask", integrations });
+      const different = await waitOpened(beforeDifferent);
+      expect(different).toMatchObject({ requestType: "permission", tool: "fx_write", allowSession: true, summary: expect.stringContaining("two") });
+      expect(readFileSync(receipt, "utf8")).toBe('{"note":"one"}\n{"note":"one"}\n');
+      await instance.adapter.interruptTurn("remember");
+    } finally {
+      await instance.dispose();
+    }
+  }, 20_000);
+
+  it("does not remember a one-time allow or a guest turn", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omb-chat-session-once-"));
+    mcpDir.push(dir);
+    const receipt = join(dir, "calls.txt");
+    const queue: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      if (!String(input).endsWith("/chat/completions")) return new Response(JSON.stringify({ data: [] }));
+      const next = queue.shift();
+      if (!next) throw new Error("unexpected completion");
+      return sse(next);
+    }));
+    const instance = await OpenAICompatDriver.create({
+      instanceId: "session-once", displayName: "Compat", enabled: true,
+      config: OpenAICompatDriver.decodeConfig({ url: "https://api.example.test/v1", apiKeyEnv: "K", model: "fixture" }),
+      environment: { K: "synthetic" },
+    });
+    const events: RuntimeEvent[] = [];
+    instance.adapter.onEvent((event) => events.push(event));
+    const integrations = { custom: { fx: noteServer(receipt) } };
+    const openedSince = (mark: number) => events.slice(mark).filter((event) => event.type === "request.opened");
+    const waitOpened = (mark: number) => vi.waitFor(() => {
+      const found = openedSince(mark)[0];
+      if (!found || found.type !== "request.opened") throw new Error("waiting for the permission card");
+      return found;
+    }, { timeout: 10_000 });
+    const waitDone = (count: number) => vi.waitFor(() => {
+      if (events.filter((event) => event.type === "turn.completed").length < count) throw new Error("turn still running");
+    }, { timeout: 10_000 });
+    try {
+      queue.push(toolStream("once-1", "one"), finalStream);
+      await instance.adapter.sendTurn({ threadId: "once", text: "write once", approvalMode: "ask", integrations });
+      const once = await waitOpened(0);
+      expect(once.allowSession).toBe(true);
+      expect(await instance.adapter.respondToRequest("once", once.requestId!, { behavior: "allow" })).toBe("allowed-once");
+      await waitDone(1);
+
+      const beforeRepeat = events.length;
+      queue.push(toolStream("once-2", "one"));
+      await instance.adapter.sendTurn({ threadId: "once", text: "write once again", approvalMode: "ask", integrations });
+      const repeated = await waitOpened(beforeRepeat);
+      expect(repeated).toMatchObject({ tool: "fx_write", allowSession: true });
+      await instance.adapter.interruptTurn("once");
+      await waitDone(2);
+
+      const beforeGuest = events.length;
+      queue.push(toolStream("guest-1", "one"), finalStream);
+      await instance.adapter.sendTurn({ threadId: "guest", text: "write as a guest", approvalMode: "ask", guestConfined: true, integrations });
+      const guest = await waitOpened(beforeGuest);
+      expect(guest.allowSession).toBe(false);
+      expect(await instance.adapter.respondToRequest("guest", guest.requestId!, { behavior: "allow", always: true })).toBe("allowed-once");
+      await waitDone(3);
+
+      const beforeGuestRepeat = events.length;
+      queue.push(toolStream("guest-2", "one"));
+      await instance.adapter.sendTurn({ threadId: "guest", text: "write as a guest again", approvalMode: "ask", guestConfined: true, integrations });
+      const guestAgain = await waitOpened(beforeGuestRepeat);
+      expect(guestAgain.allowSession).toBe(false);
+      await instance.adapter.interruptTurn("guest");
     } finally {
       await instance.dispose();
     }
