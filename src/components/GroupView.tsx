@@ -47,6 +47,7 @@ import { CitationSelectionToolbar, SentCitations } from "./CitationUI";
 import { Composer } from "./Composer";
 import { ChatErrorBanner } from "./ChatErrorBanner";
 import { ChatFindBar } from "./ChatFindBar";
+import { ReconnectingLine } from "./ReconnectingLine";
 import { ConversationTurnLimit } from "./ConversationTurnLimit";
 import { GroupTaskPicker } from "./TaskPicker";
 import { GroupUsageChip } from "./GroupUsageChip";
@@ -1470,6 +1471,7 @@ export function GroupView({ group }: { group: Group }) {
       </div>
 
       {findOpen && <ChatFindBar threadId={group.threadId} onClose={() => setFindOpen(false)} />}
+      <ReconnectingLine />
       <ChatErrorBanner message={state.error} onDismiss={() => dispatch({ type: "error", message: null })} />
 
       {/* An Auto room answers like lead mode while the decision model is off: say so, once. */}

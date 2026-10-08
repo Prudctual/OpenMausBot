@@ -1032,6 +1032,7 @@
   "chat.error.dismiss": "Dismiss",
   "chat.error.longRetry": "The provider asked for a wait longer than 30 seconds, so this turn stopped. That usually means a daily or billing limit. Wait for it to reset, or choose another model.",
   "chat.error.quotaExhausted": "This account is out of credits or its quota is used up. Wait for it to reset, or choose another model.",
+  "chat.reconnecting": "Reconnecting…",
   "chat.cloudGuest.notYours": "You can only write in conversations you started on this Cloud.",
   "chat.cloudGuest.newConversation": "New conversation",
   "chat.claudeUpdate.aria": "Update Claude Code",
