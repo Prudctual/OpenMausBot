@@ -285,6 +285,7 @@
   "chat.retry": "Réessayer",
   "chat.error.signedOut": "{name} n’est pas encore connecté. Connectez-vous ci-dessous, puis renvoyez votre message.",
   "chat.error.details": "Détails",
+  "chat.error.quotaExhausted": "Ce compte n’a plus de crédits ou son quota est épuisé. Attendez la réinitialisation, ou choisissez un autre modèle.",
   "chat.send": "Envoyer",
   "chat.editMessage": "Modifier le message",
   "chat.reply": "Répondre",

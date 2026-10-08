@@ -285,6 +285,7 @@
   "chat.retry": "Reintentar",
   "chat.error.signedOut": "{name} todavía no tiene la sesión iniciada. Inicia sesión abajo y luego vuelve a enviar tu mensaje.",
   "chat.error.details": "Detalles",
+  "chat.error.quotaExhausted": "Esta cuenta no tiene créditos o agotó su cuota. Espera a que se restablezca o elige otro modelo.",
   "chat.send": "Enviar",
   "chat.editMessage": "Editar el mensaje",
   "chat.reply": "Responder",

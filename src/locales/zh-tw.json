@@ -558,6 +558,7 @@
   "chat.retry": "重試",
   "chat.error.signedOut": "{name} 尚未登入。請在下方登入，然後重新傳送你的訊息。",
   "chat.error.details": "詳細資訊",
+  "chat.error.quotaExhausted": "此帳戶的額度已用完或餘額不足。請等待重置，或改用其他模型。",
   "chat.send": "傳送",
   "chat.editMessage": "編輯訊息",
   "chat.reply": "回覆",

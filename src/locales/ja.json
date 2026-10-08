@@ -285,6 +285,7 @@
   "chat.retry": "再試行",
   "chat.error.signedOut": "{name} にまだサインインしていません。下でサインインしてから、メッセージをもう一度送信してください。",
   "chat.error.details": "詳細",
+  "chat.error.quotaExhausted": "このアカウントのクレジットが不足しているか、クォータを使い切りました。リセットを待つか、別のモデルを選んでください。",
   "chat.send": "送信",
   "chat.editMessage": "メッセージを編集",
   "chat.reply": "返信",

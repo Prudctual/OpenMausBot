@@ -1018,6 +1018,7 @@
   "chat.retry": "Retry",
   "chat.error.signedOut": "{name} isn't signed in yet. Sign in below, then send your message again.",
   "chat.error.details": "Details",
+  "chat.error.quotaExhausted": "This account is out of credits or its quota is used up. Wait for it to reset, or choose another model.",
   "chat.cloudGuest.notYours": "You can only write in conversations you started on this Cloud.",
   "chat.cloudGuest.newConversation": "New conversation",
   "chat.claudeUpdate.aria": "Update Claude Code",

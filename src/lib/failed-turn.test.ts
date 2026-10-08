@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { Bot, InstanceInfo } from "@/state/store";
 
 vi.hoisted(() => vi.stubGlobal("window", {}));
-const { activityPreview, botEngine, failedTurnCause, signedOutEngine } = await import("./failed-turn");
+const { activityPreview, botEngine, failedTurnCause, localizedQuotaCause, signedOutEngine } = await import("./failed-turn");
+const { setLocale, t } = await import("./i18n");
+const { QUOTA_EXHAUSTED_MESSAGE } = await import("../../shared/quota-message");
 
 const engine = (patch: Partial<InstanceInfo> = {}, snapshot: Partial<InstanceInfo["snapshot"]> = {}): InstanceInfo => ({
   instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude",
@@ -61,6 +63,17 @@ describe("failed turn text", () => {
     const limit = "Your Pro plan includes 2 cloud computers at once. Delete one to start another.";
     expect(activityPreview({ name: `error: ${limit}`, ok: false }, engine())).toBe(limit);
     expect(activityPreview({ name: "Bash", ok: true }, engine())).toBe("Bash");
+  });
+
+  it("shows an exhausted quota in the reader's language", () => {
+    setLocale("en");
+    expect(t("chat.error.quotaExhausted")).toBe(QUOTA_EXHAUSTED_MESSAGE);
+    expect(localizedQuotaCause(QUOTA_EXHAUSTED_MESSAGE)).toBe(QUOTA_EXHAUSTED_MESSAGE);
+    expect(activityPreview({ name: `error: ${QUOTA_EXHAUSTED_MESSAGE}`, ok: false }, engine())).toBe(QUOTA_EXHAUSTED_MESSAGE);
+    setLocale("de");
+    expect(activityPreview({ name: `error: ${QUOTA_EXHAUSTED_MESSAGE}`, ok: false }, engine())).toBe(t("chat.error.quotaExhausted"));
+    expect(localizedQuotaCause("rate limited")).toBe("rate limited");
+    setLocale("en");
   });
 
   it("finds the engine a bot's turns ran on", () => {
