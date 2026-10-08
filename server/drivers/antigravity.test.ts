@@ -858,6 +858,14 @@ describe("Antigravity driver over shared ACP", () => {
       expect(events.find((event) => event.type === "runtime.error")).toMatchObject({ message: expect.stringContaining(model) });
       expect(events.some((event) => event.type === "item.completed" && event.itemType === "assistant_text")).toBe(false);
     }
+    // A model Google retired (Claude Sonnet 4.6 leaves on Nov 2, 2026) is
+    // told plainly, not as the runtime's "Invalid params".
+    const retired = await run("thread-retired", "claude-sonnet-4-6-thinking");
+    expect(retired.done).toMatchObject({ ok: false });
+    expect(retired.events.find((event) => event.type === "runtime.error")).toMatchObject({
+      message: expect.stringContaining("Antigravity does not offer claude-sonnet-4-6-thinking to this account, so nothing was sent. Choose another model"),
+    });
+    expect(retired.events.some((event) => event.type === "item.completed" && event.itemType === "assistant_text")).toBe(false);
     // an offered one still starts on the session's own model
     expect((await run("thread-offered", "gemini-3.8-flash-low")).done).toMatchObject({ ok: true });
     expect(JSON.parse(readFileSync(dump, "utf8")).env.AGY_ACP_DEFAULT_MODEL).toBe("gemini-3.8-flash-low");
