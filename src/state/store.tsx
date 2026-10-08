@@ -37,6 +37,7 @@ import {
 import type { Routine, RoutineInput, RoutineRun, RoutineRunStatusFilter } from "@/lib/routines";
 import type { WebhookAttempt, WebhookIngressStatus, WebhookTrigger } from "@/lib/webhooks";
 import { botShowsUnread } from "@/lib/bot-unread";
+import { firstUnreadMessageId, threadOpensUnread } from "@/lib/unread-divider";
 import type { ComputerStart } from "@/lib/computer-start";
 import { answerResponse, dismissResponse } from "@/lib/card-answer";
 import { currentCall } from "@/lib/call";
@@ -610,6 +611,15 @@ function rewindThreadUpdatedAt(state: AppState, threadId: string, messages: { at
   };
 }
 
+/** The New divider for a conversation being opened. One that opens unread
+ * gets a fresh one; opening the same conversation again keeps its divider,
+ * and any other conversation has none. */
+function openedUnreadDivider(state: AppState, threadId: string, unread: boolean, messages: readonly Message[]): AppState["unreadDivider"] {
+  if (!unread) return state.unreadDivider?.threadId === threadId ? state.unreadDivider : null;
+  const messageId = firstUnreadMessageId(messages);
+  return messageId ? { threadId, messageId } : null;
+}
+
 /** The visible conversation: walk parentId links from the active leaf back
  * to the root. Falls back to the flat list for pre-branching payloads. */
 export function visibleMessages(bot: Pick<Bot, "messages" | "activeLeafId">): Message[] {
@@ -1006,6 +1016,10 @@ export interface AppState {
   /** a search hit to scroll to once its thread is on screen; nonce lets the
    * same message be focused twice in a row */
   focusMessage: { threadId: string; messageId: string; matchText?: string; nonce: number; consumed: boolean } | null;
+  /** The New divider: the first message of the open conversation that came
+   * in while the person was away. Taken from its unread flag when it opens,
+   * so it holds still while that conversation stays open. */
+  unreadDivider: { threadId: string; messageId: string } | null;
   connected: boolean;
   error: string | null;
   /** a quiet, non-error line above the transcript; clears itself */
@@ -1270,6 +1284,7 @@ export type Action =
   | { type: "toggleActivity"; open?: boolean }
   | { type: "focusMessage"; threadId: string; messageId: string; matchText?: string }
   | { type: "focusMessageConsumed"; nonce: number }
+  | { type: "unreadDividerDone"; threadId: string }
   | { type: "toggleAppSettings"; open?: boolean; section?: AppSettingsSection; cloudLink?: boolean; phonePairing?: boolean }
   | { type: "toggleShortcuts"; open?: boolean }
   | { type: "toggleWelcome"; open?: boolean }
@@ -1678,19 +1693,25 @@ export function reducer(state: AppState, action: Action): AppState {
         config: { ...state.config, profile: { name: "", email: "", ...state.config.profile, ...action.profile } },
       } : state;
     case "select": {
-      if (state.groups.some((g) => g.id === action.id)) {
+      const room = state.groups.find((g) => g.id === action.id);
+      if (room) {
         return {
           ...state,
+          unreadDivider: openedUnreadDivider(state, room.threadId, room.unread, room.messages),
           activeView: "chat",
           selectedId: action.id,
           botSettingsSection: action.id !== state.selectedId ? "overview" : state.botSettingsSection,
           groups: state.groups.map((g) => (g.id === action.id ? { ...g, unread: false } : g)),
         };
       }
+      const opened = state.bots.find((b) => b.id === action.id);
       return updateBot(
         withMascotMotion(
           {
             ...state,
+            unreadDivider: opened
+              ? openedUnreadDivider(state, opened.threadId, threadOpensUnread(opened), visibleMessages(opened))
+              : state.unreadDivider,
             activeView: "chat",
             selectedId: action.id,
             botSettingsSection: action.id !== state.selectedId ? "overview" : state.botSettingsSection,
@@ -2097,6 +2118,8 @@ export function reducer(state: AppState, action: Action): AppState {
     case "focusMessageConsumed":
       if (!state.focusMessage || state.focusMessage.nonce !== action.nonce) return state;
       return { ...state, focusMessage: { ...state.focusMessage, consumed: true } };
+    case "unreadDividerDone":
+      return state.unreadDivider?.threadId === action.threadId ? { ...state, unreadDivider: null } : state;
     case "toggleComputer": {
       const open = action.open ?? !state.computerOpen;
       return {
@@ -2418,6 +2441,12 @@ export function reducer(state: AppState, action: Action): AppState {
       for (const frame of state.backgroundThreadEvents[action.bot.threadId] ?? []) switched = reducer(switched, frame);
       const { [action.bot.threadId]: _settled, ...backgroundThreadEvents } = switched.backgroundThreadEvents;
       switched = { ...switched, backgroundThreadEvents };
+      // Only the conversation on screen draws a divider; a bot in the
+      // background moving to another thread leaves it alone.
+      const opened = switched.bots.find((bot) => bot.id === action.bot.id);
+      if (opened && opened.id === switched.selectedId) {
+        switched = { ...switched, unreadDivider: openedUnreadDivider(switched, opened.threadId, threadOpensUnread(opened), visibleMessages(opened)) };
+      }
       return reconcileModelVariantSessions(reconcileSnapshotQueues(switched, [action.bot]));
     }
     case "newBot":
@@ -2508,6 +2537,7 @@ export const initialState: AppState = {
   deletingBots: {},
   computerControl: {},
   focusMessage: null,
+  unreadDivider: null,
   connected: false,
   error: null,
   notice: null,
