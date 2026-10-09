@@ -22,20 +22,27 @@ vi.mock("@/state/store", () => ({
 vi.mock("@/lib/thread-preferences", () => ({ useShowThreads: () => fixture.showThreads }));
 vi.mock("./Avatar", () => ({ BotAvatar: () => null }));
 
-import { SidebarNewChatPanel, newChatPanelPlacement, newChatSubtext } from "./SidebarNewChatPanel";
+import { SidebarNewChatPanel, newChatPanelMaxHeight, newChatPanelPlacement, newChatSubtext } from "./SidebarNewChatPanel";
+
+describe("newChatPanelMaxHeight", () => {
+  it("caps the card at 480px and keeps it inside short windows", () => {
+    expect(newChatPanelMaxHeight(900)).toBe(480);
+    expect(newChatPanelMaxHeight(500)).toBe(428);
+  });
+});
 
 describe("newChatPanelPlacement", () => {
   it("opens against the sidebar when the chat has room", () => {
-    expect(newChatPanelPlacement({ left: 0, right: 320 }, 1280)).toEqual({ left: 320, width: 360 });
-    expect(newChatPanelPlacement({ left: 0, right: 80 }, 420)).toEqual({ left: 80, width: 340 });
+    expect(newChatPanelPlacement({ left: 0, right: 320 }, 1280)).toEqual({ left: 328, width: 360, floating: true });
+    expect(newChatPanelPlacement({ left: 0, right: 80 }, 420)).toEqual({ left: 88, width: 324, floating: true });
   });
   it("takes the whole width when the room beside the sidebar is too narrow", () => {
-    expect(newChatPanelPlacement({ left: 0, right: 320 }, 600)).toEqual({ left: 0, width: 600 });
-    expect(newChatPanelPlacement(null, 390)).toEqual({ left: 0, width: 390 });
+    expect(newChatPanelPlacement({ left: 0, right: 320 }, 600)).toEqual({ left: 0, width: 600, floating: false });
+    expect(newChatPanelPlacement(null, 390)).toEqual({ left: 0, width: 390, floating: false });
   });
   it("opens to the sidebar's left in a right-to-left layout", () => {
-    expect(newChatPanelPlacement({ left: 960, right: 1280 }, 1280, true)).toEqual({ left: 600, width: 360 });
-    expect(newChatPanelPlacement({ left: 280, right: 600 }, 600, true)).toEqual({ left: 0, width: 600 });
+    expect(newChatPanelPlacement({ left: 960, right: 1280 }, 1280, true)).toEqual({ left: 592, width: 360, floating: true });
+    expect(newChatPanelPlacement({ left: 280, right: 600 }, 600, true)).toEqual({ left: 0, width: 600, floating: false });
   });
 });
 
@@ -82,7 +89,9 @@ describe("SidebarNewChatPanel", () => {
     expect(text).toContain("Create new bot");
     expect(text).toContain("Create group chat");
     expect(text).toContain("Scout");
-    expect(text).toContain("Writes the newsletter");
+    // one line per bot: the subtitle moves to the accessible name
+    expect(text).not.toContain("Writes the newsletter");
+    expect(container!.querySelector("[aria-label^='Quill, Writes the newsletter']")).not.toBeNull();
     expect(text).not.toContain("Ghost");
   });
 
@@ -121,7 +130,7 @@ describe("SidebarNewChatPanel", () => {
   it("opens the bot's one conversation in simple mode", () => {
     fixture.showThreads = false;
     const { input } = open();
-    expect(container!.textContent).toContain("Open");
+    expect(container!.querySelector("[aria-label$='. Open']")).not.toBeNull();
     key(input, "Enter");
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "select", id: "scout" });
   });
