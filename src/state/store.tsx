@@ -37,7 +37,7 @@ import {
 import type { Routine, RoutineInput, RoutineRun, RoutineRunStatusFilter } from "@/lib/routines";
 import type { WebhookAttempt, WebhookIngressStatus, WebhookTrigger } from "@/lib/webhooks";
 import { botShowsUnread } from "@/lib/bot-unread";
-import { firstUnreadMessageId, threadOpensUnread } from "@/lib/unread-divider";
+import { firstUnreadMessageId, threadOpensUnread, threadReadCursor } from "@/lib/unread-divider";
 import type { ComputerStart } from "@/lib/computer-start";
 import { answerResponse, dismissResponse } from "@/lib/card-answer";
 import { currentCall } from "@/lib/call";
@@ -251,6 +251,9 @@ export interface Group {
   defaultResponder: GroupDefaultResponder;
   bulletin: string;
   unread: boolean;
+  /** The newest message on screen the last time the person read this
+   * conversation. The New divider goes after it. */
+  lastReadMessageId?: string;
   createdAt: number;
   /** auto-created bot⇄bot channel (ask_bot exchanges mirror here) */
   dm?: boolean;
@@ -343,6 +346,9 @@ export interface Task {
    * readout anchors here so it survives thread switches. Absent while idle. */
   turnStartedAt?: number;
   unread?: boolean;
+  /** The newest message on screen the last time the person read this
+   * conversation. The New divider goes after it. */
+  lastReadMessageId?: string;
   pinnedMessageId?: string;
   /** where this conversation works, when pinned: by the person from the
    * composer, or by its first Auto turn to the place it reached. Wins over
@@ -617,9 +623,9 @@ function rewindThreadUpdatedAt(state: AppState, threadId: string, messages: { at
 /** The New divider for a conversation being opened. One that opens unread
  * gets a fresh one; opening the same conversation again keeps its divider,
  * and any other conversation has none. */
-function openedUnreadDivider(state: AppState, threadId: string, unread: boolean, messages: readonly Message[]): AppState["unreadDivider"] {
+function openedUnreadDivider(state: AppState, threadId: string, unread: boolean, messages: readonly Message[], lastReadMessageId?: string): AppState["unreadDivider"] {
   if (!unread) return state.unreadDivider?.threadId === threadId ? state.unreadDivider : null;
-  const messageId = firstUnreadMessageId(messages);
+  const messageId = firstUnreadMessageId(messages, lastReadMessageId);
   return messageId ? { threadId, messageId } : null;
 }
 
@@ -1700,7 +1706,7 @@ export function reducer(state: AppState, action: Action): AppState {
       if (room) {
         return {
           ...state,
-          unreadDivider: openedUnreadDivider(state, room.threadId, room.unread, room.messages),
+          unreadDivider: openedUnreadDivider(state, room.threadId, room.unread, room.messages, room.lastReadMessageId),
           activeView: "chat",
           selectedId: action.id,
           botSettingsSection: action.id !== state.selectedId ? "overview" : state.botSettingsSection,
@@ -1713,7 +1719,7 @@ export function reducer(state: AppState, action: Action): AppState {
           {
             ...state,
             unreadDivider: opened
-              ? openedUnreadDivider(state, opened.threadId, threadOpensUnread(opened), visibleMessages(opened))
+              ? openedUnreadDivider(state, opened.threadId, threadOpensUnread(opened), visibleMessages(opened), threadReadCursor(opened))
               : state.unreadDivider,
             activeView: "chat",
             selectedId: action.id,
@@ -2448,7 +2454,7 @@ export function reducer(state: AppState, action: Action): AppState {
       // background moving to another thread leaves it alone.
       const opened = switched.bots.find((bot) => bot.id === action.bot.id);
       if (opened && opened.id === switched.selectedId) {
-        switched = { ...switched, unreadDivider: openedUnreadDivider(switched, opened.threadId, threadOpensUnread(opened), visibleMessages(opened)) };
+        switched = { ...switched, unreadDivider: openedUnreadDivider(switched, opened.threadId, threadOpensUnread(opened), visibleMessages(opened), threadReadCursor(opened)) };
       }
       return reconcileModelVariantSessions(reconcileSnapshotQueues(switched, [action.bot]));
     }

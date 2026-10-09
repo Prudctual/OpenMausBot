@@ -1,11 +1,11 @@
 // Where the New divider goes when a conversation opens unread.
 //
-// Read state is one flag per conversation (Task.unread, Group.unread), so it
-// says that something arrived while the person was away, not where. The
-// person's own newest line is the last point they certainly saw: the divider
-// sits above the first line someone else wrote after it. A conversation the
-// person never wrote in has no such point and gets no divider, and neither
-// does one where nothing came in after them.
+// The flag (Task.unread, Group.unread) says that something arrived while the
+// person was away. Where is the later of two points they certainly saw: the
+// newest message on screen when they last read the conversation
+// (lastReadMessageId), and their own newest line. The divider sits above the
+// first message after it. With neither point there is no divider, and none
+// when nothing came in after it.
 import { peerLine } from "@/lib/peer-message";
 import type { Message } from "@/state/store";
 
@@ -14,12 +14,22 @@ type Line = Pick<Message, "id" | "role" | "text" | "peerAsk">;
 /** A user-role line the person wrote, not one another bot delivered. */
 const fromPerson = (message: Line) => message.role === "user" && !peerLine(message);
 
-/** The first unread message of a conversation opened unread, or null. */
-export function firstUnreadMessageId(messages: readonly Line[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (fromPerson(messages[i]!)) return messages[i + 1]?.id ?? null;
-  }
-  return null;
+/** The first unread message of a conversation opened unread, or null. A
+ * read cursor that is not among these messages (another branch, or older
+ * than what is loaded) leaves only the person's own line to go by. */
+export function firstUnreadMessageId(messages: readonly Line[], lastReadMessageId?: string): string | null {
+  let seen = -1;
+  for (let i = messages.length - 1; i >= 0 && seen < 0; i--) if (fromPerson(messages[i]!)) seen = i;
+  if (lastReadMessageId) seen = Math.max(seen, messages.findIndex((message) => message.id === lastReadMessageId));
+  return seen < 0 ? null : messages[seen + 1]?.id ?? null;
+}
+
+/** The read cursor of the conversation shown for this bot. */
+export function threadReadCursor(bot: {
+  threadId: string;
+  tasks?: ReadonlyArray<{ threadId: string; lastReadMessageId?: string }> | null;
+}): string | undefined {
+  return bot.tasks?.find((task) => task.threadId === bot.threadId)?.lastReadMessageId;
 }
 
 /** The divider's message and every one after it, or null when the mounted

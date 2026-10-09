@@ -17,6 +17,26 @@ describe("firstUnreadMessageId", () => {
     expect(firstUnreadMessageId([line("u1", "user"), line("b2", "bot"), peer, legacyPeer, line("b5", "bot")])).toBe("b2");
   });
 
+  it("starts after the last read message when the person read without replying", () => {
+    // U1, then A1 read on screen, then A2 arrived while away: only A2 is new
+    const rows = [line("u1", "user"), line("a1", "bot"), line("a2", "bot")];
+    expect(firstUnreadMessageId(rows, "a1")).toBe("a2");
+    expect(firstUnreadMessageId(rows)).toBe("a1");
+    // a conversation the person only ever read still gets one
+    expect(firstUnreadMessageId([line("b1", "bot"), line("b2", "bot")], "b1")).toBe("b2");
+  });
+
+  it("takes the person's own newer line over an older read cursor", () => {
+    const rows = [line("b1", "bot"), line("u2", "user"), line("b3", "bot")];
+    expect(firstUnreadMessageId(rows, "b1")).toBe("b3");
+  });
+
+  it("ignores a read cursor that is not among the messages", () => {
+    const rows = [line("u1", "user"), line("a1", "bot"), line("a2", "bot")];
+    expect(firstUnreadMessageId(rows, "other-branch")).toBe("a1");
+    expect(firstUnreadMessageId(rows, "a2")).toBeNull();
+  });
+
   it("is null when the person never wrote, or nothing came after them", () => {
     expect(firstUnreadMessageId([])).toBeNull();
     expect(firstUnreadMessageId([line("b1", "bot"), line("b2", "bot")])).toBeNull();
@@ -90,6 +110,13 @@ describe("the divider in the store", () => {
     const selected = { ...base, selectedId: "pepper" };
     const run = reducer(selected, { type: "taskSwitched", bot: bot("pepper", { threadId: "pepper-b", tasks: unreadTasks("pepper", "pepper-b", { routineRunId: "r1" }) }) });
     expect(run.unreadDivider).toBeNull();
+  });
+
+  it("goes after the read cursor of the conversation that opens", () => {
+    const read = { ...base, bots: [bot("other"), bot("pepper", { unread: true, tasks: [{ threadId: "pepper-a", title: "A", createdAt: 1, unread: true, lastReadMessageId: "b2" }] })],
+      groups: [{ ...room, lastReadMessageId: "b2" }] };
+    expect(reducer(read, { type: "select", id: "pepper" }).unreadDivider).toEqual({ threadId: "pepper-a", messageId: "b3" });
+    expect(reducer(read, { type: "select", id: "room" }).unreadDivider).toEqual({ threadId: "room-t", messageId: "b3" });
   });
 
   it("is dropped once done, only for its own conversation", () => {
