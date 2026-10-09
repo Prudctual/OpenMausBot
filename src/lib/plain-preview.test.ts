@@ -20,6 +20,13 @@ describe("plainPreviewText", () => {
     ["a reply cut off mid **bold", "a reply cut off mid bold"],
     ["```python\nprint('hi')", "print('hi')"],
     ["escaped \\*star\\* stays", "escaped *star* stays"],
+    // code keeps its own syntax, fenced or inline
+    ["```js\nconst pattern = '**required**';\n```", "const pattern = '**required**';"],
+    ["Use `**kwargs` and `[a](b)` as written", "Use **kwargs and [a](b) as written"],
+    ["Run `a\\*b` here", "Run a\\*b here"],
+    ["~~~\n# not a heading\n- not a list\n~~~\nafter", "# not a heading - not a list after"],
+    // an image's address can hold balanced parentheses too
+    ["![plot](/charts/a_(b).png) attached", "plot attached"],
   ])("reads %j as plain text", (input, expected) => {
     expect(plainPreviewText(input)).toBe(expected);
   });

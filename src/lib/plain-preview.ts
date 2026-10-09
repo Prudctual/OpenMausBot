@@ -15,10 +15,19 @@ export function plainPreviewText(text: string): string {
     escaped.push(char);
     return `\uE000${escaped.length - 1}\uE001`;
   });
-  // fenced code: keep the code, drop the fence lines and their language tag
-  out = out.replace(/^[ \t]*(`{3,}|~{3,})[^\n]*$/gm, "");
+  // code reads as its code, untouched by the rules below: park each fenced
+  // block's body (dropping the fence lines and language tag, closed or cut
+  // off mid-stream) and each inline code span's text
+  const code: string[] = [];
+  const park = (body: string) => {
+    // inside code a backslash is literal, so an escape reads as typed
+    code.push(body.replace(/\uE000(\d+)\uE001/g, (_match, index: string) => `\\${escaped[Number(index)] ?? ""}`));
+    return `\uE002${code.length - 1}\uE003`;
+  };
+  out = out.replace(/^[ \t]*(`{3,}|~{3,})[^\n]*(?:\n([\s\S]*?))?(?:\n[ \t]*\1[ \t]*(?=\n|$(?![\s\S]))|$(?![\s\S]))/gm, (_block, _fence: string, body: string | undefined) => `\n${park(body ?? "")}\n`);
+  out = out.replace(/(`+)([^`]*?)\1/g, (_span, _ticks: string, body: string) => park(body));
   // images read as their alt text, links as their label
-  out = out.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
+  out = out.replace(/!\[([^\]]*)\]\((?:[^()]|\([^)]*\))*\)/g, "$1");
   out = out.replace(/!\[([^\]]*)\]\[[^\]]*\]/g, "$1");
   out = out.replace(/\[([^\]]+)\]\((?:[^()]|\([^)]*\))*\)/g, "$1");
   out = out.replace(/\[([^\]]+)\]\[[^\]]*\]/g, "$1");
@@ -38,8 +47,6 @@ export function plainPreviewText(text: string): string {
   out = out.replace(/^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*(?:\|[ \t]*:?-{3,}:?[ \t]*)*\|?[ \t]*$/gm, "");
   out = out.replace(/^[ \t]{0,3}(?:[-*_][ \t]*){3,}$/gm, "");
   out = out.replace(/^[ \t]*\|(.*)\|[ \t]*$/gm, (_row, cells: string) => cells.split("|").map((cell) => cell.trim()).filter(Boolean).join(" "));
-  // inline code reads as its text
-  out = out.replace(/(`+)([^`]*?)\1/g, "$2");
   // emphasis: ***x***, **x**, __x__, *x*, _x_, ~~x~~. Underscores inside a
   // word (snake_case) are not emphasis, and a lone * (2 * 3) is not either.
   out = out.replace(/(\*{1,3}|_{1,3})(?=\S)([\s\S]*?\S)\1(?![\p{L}\p{N}])/gu, (match, marks: string, inner: string, offset: number, whole: string) => {
@@ -49,6 +56,7 @@ export function plainPreviewText(text: string): string {
   out = out.replace(/~~(?=\S)([\s\S]*?\S)~~/g, "$1");
   // a reply cut off mid-stream leaves an unclosed ** or ``` behind
   out = out.replace(/\*\*+|`{3,}|~~/g, "");
+  out = out.replace(/\uE002(\d+)\uE003/g, (_match, index: string) => code[Number(index)] ?? "");
   out = out.replace(/\uE000(\d+)\uE001/g, (_match, index: string) => escaped[Number(index)] ?? "");
   return out.replace(/\s+/g, " ").trim();
 }
