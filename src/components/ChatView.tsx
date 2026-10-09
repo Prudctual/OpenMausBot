@@ -1395,7 +1395,6 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
                 inputClassName="max-w-[220px] rounded-full bg-inset px-2 py-0.5 text-[14px] font-semibold"
               />
               {chiefOfStaffBadge(bot)}
-              {bot.busy && <WorkingDots className="pr-2 text-ink-secondary" />}
             </div>
           ) : (
             <button
@@ -1416,9 +1415,14 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               />
               <span className="min-w-0 truncate text-[14px] font-semibold text-ink">{bot.name}</span>
               {chiefOfStaffBadge(bot)}
-              {bot.busy && <WorkingDots className="text-ink-secondary" />}
             </button>
           )}
+          {/* The pill draws no activity of its own: the sidebar avatar's
+              presence dot, the Stop button beside the model chip and the
+              composer already say a turn is running, at every width. The
+              pill keeps one width either way, and a screen reader still
+              hears when the bot starts working. */}
+          <span role="status" className="sr-only" data-chathead-status>{bot.busy ? t("sidebar.preview.working") : ""}</span>
           {!bot.busy && bot.waitingForTeammates && <span className="truncate text-[12px] text-ink-secondary" role="status">Teammates working</span>}
         </div>
         <div
