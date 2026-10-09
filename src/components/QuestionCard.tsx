@@ -76,8 +76,19 @@ function tabLabel(question: AskQuestion, index: number): string {
 /** Options with no description read best as a row of chips; any
  * description needs the room of a full row. */
 export function questionUsesChips(question: AskQuestion): boolean {
-  return question.options.every((option) => !option.description);
+  return question.options.every((option) => !option.description && option.label.length <= CHIP_MAX_LABEL);
 }
+
+/** Longer than this a label stops reading as a pill: it would truncate, so
+ * it gets a row of its own that can wrap. */
+const CHIP_MAX_LABEL = 32;
+
+/** One choice as its own row: a separate surface with a gap to the next,
+ * so a set of rows never reads as one joined box. */
+const CHOICE_ROW =
+  "flex w-full items-start gap-2.5 rounded-2xl px-3 py-2 text-start ring-1 ring-inset transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+const CHOICE_ROW_IDLE = "bg-ink/[0.05] ring-transparent hover:bg-ink/[0.09]";
+const CHOICE_ROW_PICKED = "bg-accent/15 ring-accent/60";
 
 /**
  * The one line an answered card folds into: what was asked, then what was
@@ -286,9 +297,9 @@ export function QuestionCard({
           onKeyDown={moveChoiceFocus}
           className={chips
             ? "mt-2.5 flex flex-wrap items-center gap-2"
-            : "mt-2.5 overflow-hidden rounded-2xl border border-hairline/40"}
+            : "mt-2.5 flex flex-col gap-1.5"}
         >
-          {current.options.map((option, index) => {
+          {current.options.map((option) => {
             const picked = draft.picked.includes(option.label);
             return chips ? (
               <Chip
@@ -306,26 +317,24 @@ export function QuestionCard({
                 role={multi ? "checkbox" : "radio"}
                 aria-checked={picked}
                 onClick={() => choose(option.label)}
-                className={cn(
-                  "flex w-full items-start gap-2.5 px-3 py-2 text-start",
-                  index > 0 && "border-t border-hairline/40",
-                  // `raised` is the same value as the card in the light
-                  // skins; `raised-hover` is the one tone every skin
-                  // guarantees stands off a surface.
-                  picked ? "bg-raised-hover" : "hover:bg-raised-hover/60",
-                )}
+                // the row takes its direction from the label, so an arabic
+                // option puts its marker on the right and wraps from there
+                dir="auto"
+                className={cn(CHOICE_ROW, picked ? CHOICE_ROW_PICKED : CHOICE_ROW_IDLE)}
               >
                 <Marker checked={picked} multi={multi} />
-                <span className="min-w-0">
-                  <span dir="auto" className="block text-[13px] font-medium leading-5 text-ink">{option.label}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block break-words text-[13px] font-medium leading-5 text-ink">{option.label}</span>
                   {option.description && (
-                    <span dir="auto" className="block text-[12.5px] leading-snug text-ink-secondary">{option.description}</span>
+                    <span className="block break-words text-[12.5px] leading-snug text-ink-secondary">{option.description}</span>
                   )}
                 </span>
               </button>
             );
           })}
-          {chips ? (
+          {/* an options-only question (an ACP engine answers with an option
+              id, never text) has no free-text choice it could send */}
+          {current.custom === false ? null : chips ? (
             <Chip multi={multi} checked={draft.other} onClick={toggleOther} label={t("question.other")} />
           ) : (
             <button
@@ -334,11 +343,7 @@ export function QuestionCard({
               role={multi ? "checkbox" : "radio"}
               aria-checked={draft.other}
               onClick={toggleOther}
-              className={cn(
-                "flex w-full items-center gap-2.5 px-3 py-2 text-start",
-                current.options.length > 0 && "border-t border-hairline/40",
-                draft.other ? "bg-raised-hover" : "hover:bg-raised-hover/60",
-              )}
+              className={cn(CHOICE_ROW, draft.other ? CHOICE_ROW_PICKED : CHOICE_ROW_IDLE)}
             >
               <Marker checked={draft.other} multi={multi} />
               <span className="text-[13px] font-medium leading-5 text-ink">{t("question.other")}</span>
@@ -346,7 +351,7 @@ export function QuestionCard({
           )}
         </div>
       )}
-      {draft.other && (
+      {draft.other && current.custom !== false && (
         // A textarea, so an answer can run to a few lines: Enter sends,
         // Shift+Enter starts a new line. It grows with its text up to a cap.
         // Focus moves here only when the person opened "Other"; an open
@@ -434,7 +439,7 @@ function Marker({ checked, multi }: { checked: boolean; multi: boolean }) {
       className={cn(
         "mt-0.5 flex size-4 shrink-0 items-center justify-center border",
         multi ? "rounded-[5px]" : "rounded-full",
-        checked ? "border-accent bg-accent" : "border-hairline",
+        checked ? "border-accent bg-accent" : "border-ink-tertiary/70",
       )}
     >
       {checked &&

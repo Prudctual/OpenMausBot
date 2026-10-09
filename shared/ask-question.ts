@@ -42,6 +42,10 @@ export interface AskQuestion {
   header?: string;
   multiSelect?: boolean;
   options: AskQuestionOption[];
+  /** false when the provider can only take one of `options` back (an ACP
+   * permission-style question answers with an option id, never text). The
+   * card then offers no free-text "Other". Absent means free text is fine. */
+  custom?: false;
 }
 
 /** Durable payload on a question card. Versioned like the other card
