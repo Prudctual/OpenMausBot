@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import type { Bot, Message } from "@/state/store";
-import type { QuestionRequestCardData } from "../../shared/ask-question";
+import type { AskQuestion, QuestionRequestCardData } from "../../shared/ask-question";
 
 // The card dispatches its answer through the store, and the store module
 // touches window/localStorage at import time — same shape as
@@ -19,7 +19,7 @@ vi.mock("@/state/store", async (importOriginal) => ({
   useStore: () => ({ state: {}, dispatch: fixture.dispatch }),
 }));
 
-const { QuestionCard } = await import("./QuestionCard");
+const { QuestionCard, questionUsesChips, settledQuestionLine } = await import("./QuestionCard");
 
 afterAll(() => vi.unstubAllGlobals());
 
@@ -126,7 +126,65 @@ describe("QuestionCard", () => {
     expect(markup).not.toContain('role="radiogroup"');
   });
 
+  it("leads a single question with its header as the accent title, and names the bot quietly", () => {
+    const single = message({ questionRequest: { version: 1, questions: [questionRequest.questions[1]!] } });
+    const markup = render(single);
+    expect(markup).toMatch(/text-accent-text[^"]*">Style</);
+    expect(markup).toContain("Hazelnut");
+    expect(markup).not.toContain("Hazelnut has a question");
+  });
+
+  it("draws options without descriptions as chips and options with them as rows", () => {
+    expect(questionUsesChips(questionRequest.questions[1]!)).toBe(true);
+    expect(questionUsesChips(questionRequest.questions[0]!)).toBe(false);
+    const chips = render(message({ questionRequest: { version: 1, questions: [questionRequest.questions[1]!] } }));
+    expect(chips).toContain("rounded-full border");
+    expect(chips).toContain("data-ask-choice");
+  });
+
+  it("folds an answered card into one line, with the full answer behind Details", () => {
+    const markup = render(message({
+      answered: "answer",
+      answeredText: "The user answered your questions.\n\nQ: Which model should Hazelnut run on by default?\nA: Claude Opus 5\n\nQ: Which style should it write in?\nA: Terse",
+    }));
+    expect(markup).toContain('data-ask-card="settled"');
+    expect(markup).toContain("Model: Claude Opus 5 · Style: Terse");
+    expect(markup).toContain("Details");
+    expect(markup).not.toContain("Submit");
+    expect(markup).not.toContain("The user answered your questions.");
+  });
+
+  it("says a question nobody answered was closed, not answered", () => {
+    const markup = render(message({ answered: "unavailable" }));
+    expect(markup).toContain("Closed without an answer");
+    expect(markup).not.toContain('role="radiogroup"');
+    expect(markup).not.toContain("Details");
+  });
+
   it("renders nothing for a card that carries no questions", () => {
     expect(render(message({ questionRequest: undefined }))).toBe("");
+  });
+});
+
+describe("settledQuestionLine", () => {
+  const [model, style] = questionRequest.questions as [AskQuestion, AskQuestion];
+
+  it("names one question by its header and shows only the answer", () => {
+    expect(settledQuestionLine([model], "The user answered your questions.\n\nQ: Which model should Hazelnut run on by default?\nA: Claude Opus 5"))
+      .toEqual({ label: "Model", value: "Claude Opus 5" });
+  });
+
+  it("falls back to the question text when there is no header", () => {
+    const plain = { question: "Which store?", options: [] };
+    expect(settledQuestionLine([plain], "Instamart")).toEqual({ label: "Which store?", value: "Instamart" });
+  });
+
+  it("lists each header beside its answer for a set, on one line", () => {
+    const line = settledQuestionLine([model, style], "Q: Which model should Hazelnut run on by default?\nA: Claude\nOpus\n\nQ: Which style should it write in?\nA: Terse");
+    expect(line.value).toBe("Model: Claude Opus · Style: Terse");
+  });
+
+  it("says Answered when there is no text to show", () => {
+    expect(settledQuestionLine([model], undefined)).toEqual({ label: "Answered", value: "" });
   });
 });
