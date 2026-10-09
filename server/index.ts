@@ -637,6 +637,7 @@ import { createUndoRoutes } from "./routes/undo.ts";
 import { createDesktopViewer, desktopViewerUrl } from "./routes/desktop-viewer.ts";
 import { localDesktopTarget, localVmViewerStatus, viewerTargetId } from "./desktop-viewer-targets.ts";
 import { createAntigravityLeftoverRoutes } from "./routes/antigravity-leftovers.ts";
+import { createAntigravityAccountRoutes } from "./routes/antigravity-accounts.ts";
 import { findAntigravityLeftovers, removeAntigravityLeftovers } from "./drivers/antigravity-temp.ts";
 import { createLiveRoutes } from "./routes/live.ts";
 import { createUsageRoutes } from "./routes/usage.ts";
@@ -1688,6 +1689,10 @@ interface AuditPlan {
   roomId?: string;
 }
 
+/** The "add an account" routes and the engine each one adds to, for the audit log. */
+const ACCOUNT_ADD_ENGINES = new Map([["/api/instances/claude-accounts", "claude"], ["/api/instances/chatgpt-accounts", "chatgpt"],
+  ["/api/instances/antigravity-accounts", "antigravity"]]);
+
 function adminAuditPlan(method: string, path: string): AuditPlan | null {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
   if (path.startsWith("/api/internal/") || path.startsWith("/api/testing/")) return null;
@@ -1708,9 +1713,8 @@ function adminAuditPlan(method: string, path: string): AuditPlan | null {
   if (m && method === "PATCH") plan.roomId = m[1];
   m = /^\/api\/instances\/([\w.-]+)\/(install|auth\/complete|auth\/sign-out|claude-update|leftover-files\/remove)$/.exec(path);
   if (m && method === "POST") plan.engineAction = { id: m[1]!, action: m[2]!.replace("/", "-") };
-  if (method === "POST" && path === "/api/instances/claude-accounts") plan.engineAction = { id: "claude", action: "account-add" };
-  if (method === "POST" && path === "/api/instances/chatgpt-accounts") plan.engineAction = { id: "chatgpt", action: "account-add" };
-  if (method === "POST" && path === "/api/instances/antigravity-accounts") plan.engineAction = { id: "antigravity", action: "account-add" };
+  const accountAdd = method === "POST" ? ACCOUNT_ADD_ENGINES.get(path) : undefined;
+  if (accountAdd) plan.engineAction = { id: accountAdd, action: "account-add" };
   return plan.config || plan.botId || plan.createsBots || plan.deletesBot || plan.createsWebhook || plan.webhookId || plan.sessionId || plan.pairing || plan.engineAction || plan.roomId ? plan : null;
 }
 
@@ -6321,8 +6325,8 @@ const memoryUpkeep = createMemoryUpkeep({
   log: (line) => console.log(line),
 });
 
-// OMB Cloud home: the first bot turn that finishes here ticks the setup
-// checklist's "try something" step (firstCloudTurnPatch). The server writes
+// OMB Cloud home: the first bot turn that finishes here is the setup
+// checklist's sign the Cloud has been used (firstCloudTurnPatch). The server writes
 // it, not an admin, so it is kept out of any admin's recorded changes.
 bus.subscribe((event: RuntimeEvent) => {
   if (!CLOUD_HOME || event.type !== "turn.completed" || shouldIgnoreProviderEvent(event)) return;
@@ -11979,7 +11983,9 @@ function dispatchTeamSetupResume(entry: TeamSetupResumeEntry): void {
     pendingTeamSetupResumes.set(request.requestId, entry);
     return;
   }
-  const prompt = `OpenMausBot team setup decision ${request.requestId}: ${JSON.stringify(request.result)}. Report this exact result and continue the user's already requested work. Do not ask for confirmation again or repeat this setup/deletion. A denied or cancelled operation did not authorize any substitute action. Existing thread models were not changed.`;
+  const notNow = request.suggestion && request.result?.state === "denied"
+    ? " The user chose Not now for this suggested specialist. Do not suggest another specialist in this conversation unless they ask for one." : "";
+  const prompt = `OpenMausBot team setup decision ${request.requestId}: ${JSON.stringify(request.result)}. Report this exact result and continue the user's already requested work. Do not ask for confirmation again or repeat this setup/deletion. A denied or cancelled operation did not authorize any substitute action. Existing thread models were not changed.${notNow}`;
   const failed = (error: string) => {
     if (cancelled()) return;
     const current = store.messagesFor(request.threadId).find((item) => item.id === messageId);
@@ -15988,6 +15994,17 @@ ROUTES.push(createAntigravityLeftoverRoutes({
   find: () => findAntigravityLeftovers(),
   remove: () => removeAntigravityLeftovers(),
 }));
+// Another Google account for Antigravity; shares the provider-settings lock with the other account routes.
+ROUTES.push(createAntigravityAccountRoutes({
+  instances: () => persistableInstanceConfigs(cfg),
+  persist: persistProviderInstance,
+  describe: describeInstances,
+  exclusive: (work) => {
+    if (providerConfigBusy) return null;
+    providerConfigBusy = true;
+    return work().finally(() => { providerConfigBusy = false; });
+  },
+}));
 
 ROUTES.push(desktopViewer.route);
 
@@ -18545,7 +18562,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         const body = await readInternalBody();
         const chief = internalSender;
         const fromThreadId = internalCapability.threadId;
-        if (!connectorThread(chief.id, fromThreadId)) {
+        const owner = connectorThread(chief.id, fromThreadId);
+        if (!owner) {
           return json(res, 403, { error: "source conversation does not belong to sender" });
         }
         if (!chief.chiefOfStaff) {
@@ -18606,33 +18624,53 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (duplicate) {
           return json(res, 409, { error: `@${duplicate.name} already exists in this section; use list_bots` });
         }
-        const created = store.createBot(
-          {
-            name,
-            title: role,
-            description: instructions,
-            modelSelection: selection,
-            section: chief.section,
-            ...(cwd !== undefined ? { cwd } : {}),
-            // exactly the Chief's audience: a restricted Chief never makes a bot everyone sees
-            ...(chief.visibility ? { visibility: chief.visibility } : {}),
+        // The same reviewed path propose_team_setup takes: Full Access applies
+        // it in this turn, anything below shows one card and creates nothing
+        // until the person applies it. The instructions become the
+        // specialist's standing instructions (soul).
+        // A suggestion (nobody asked for this bot) always waits on the card.
+        const suggestion = body.suggestion === true;
+        const summary = instructions.split("\n").find((line) => line.trim())?.trim() ?? "";
+        const setup = {
+          botId: chief.id,
+          threadId: fromThreadId,
+          canCommit: () => internalCapabilityIsActive(internalCapability),
+          ...(owner.group ? { from: { botId: chief.id, name: chief.name, color: chief.color } } : {}),
+          plan: {
+            reason: suggestion ? `@${chief.name} thinks the team needs @${name} (${role}).` : `Add @${name} (${role}) to the team.`,
+            operations: [{
+              action: "create",
+              key: "create_bot",
+              fields: {
+                name,
+                title: role,
+                description: summary.length > 200 ? `${summary.slice(0, 199).trimEnd()}…` : summary,
+                soul: instructions,
+                modelSelection: selection,
+                ...(cwd !== undefined ? { cwd } : {}),
+              },
+            }],
           },
-          { seedMessages: false },
-        );
-        const safeBot = store.patchBot(created.id, {
-          composio: false,
-          connectorTools: {},
-          autoApprove: false,
-          approvePeerComms: false,
-        })!;
-        internalCapability.createdBots += 1;
+        };
+        const proposed = suggestion ? teamSetupRequests.suggest(setup) : await teamSetupRequests.submit(setup);
+        if (proposed.state === "applied" || proposed.state === "pending") {
+          internalCapability.createdBots += 1;
+          appendDecision(DATA_DIR, { threadId: fromThreadId, requestId: proposed.requestId, botId: chief.id,
+            tool: "create_bot", summary: proposed.detail, decision: proposed.state === "applied" ? "auto-approved" : "card-shown",
+            source: proposed.state === "pending" ? "profile" : "full-access" });
+        }
+        if (proposed.state === "pending") return json(res, 201, proposed);
+        const createdId = "result" in proposed ? proposed.result.bots.find((bot) => bot.action === "created")?.id : undefined;
+        const created = createdId ? store.bot(createdId) : undefined;
+        if (!created) return json(res, 201, proposed);
         return json(res, 201, {
-          id: safeBot.id,
-          name: safeBot.name,
-          title: safeBot.title,
-          section: safeBot.section || "General",
-          model: safeBot.modelSelection.model,
-          modelSelection: safeBot.modelSelection,
+          ...proposed,
+          id: created.id,
+          name: created.name,
+          title: created.title,
+          section: created.section || "General",
+          model: created.modelSelection.model,
+          modelSelection: created.modelSelection,
         });
       }
       if (method === "POST" && (path === "/api/internal/create-room" || path === "/api/internal/manage-room")) {
@@ -19229,7 +19267,20 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (!sourceBotId || !mapped.has(sourceBotId)) return [];
         return [{ sourceBotId, targetBotId: watch.toBotId, threadId, groupId: channel?.id }];
       });
-      return json(res, 200, { collaborations, queued, running });
+      // Work sent with coordinate_bots lives in the room handoff tree, not in
+      // the classic delegation queue above. Ids only, like everything here.
+      const handoffs = roomHandoffs.liveEdges()
+        .filter((edge) =>
+          mapped.has(edge.sourceBotId)
+          && mapped.has(edge.targetBotId)
+          && (!edge.groupId || visible.group(edge.groupId)));
+      const links = (state: "queued" | "running") =>
+        handoffs.flatMap(({ state: edgeState, ...link }) => edgeState === state ? [link] : []);
+      return json(res, 200, {
+        collaborations,
+        queued: [...queued, ...links("queued")],
+        running: [...running, ...links("running")],
+      });
     }
 
     // ── routines calendar ────────────────────────────────────────────────
@@ -23965,26 +24016,6 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         cfg.instances = changed.instances;
         broadcast({ kind: "config", ...configStatus() });
         return json(res, 200, { instances: await describeInstances() });
-      } finally { providerConfigBusy = false; }
-    }
-
-    if (method === "POST" && path === "/api/instances/antigravity-accounts") {
-      if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) return json(res, 415, { error: "content-type must be application/json" });
-      const parsed = createClaudeAccountSchema.pick({ displayName: true }).extend({ sourceInstanceId: z.string().min(1).max(200) }).safeParse(await readBody(req, 8192));
-      if (!parsed.success) return json(res, 400, { error: "Enter an account name (up to 80 characters) and select an Antigravity provider." });
-      if (providerConfigBusy) return json(res, 409, { error: "provider settings are already being updated" });
-      providerConfigBusy = true;
-      try {
-        const instances = persistableInstanceConfigs(cfg);
-        const source = instances[parsed.data.sourceInstanceId];
-        if (source?.driver !== "antigravityAgent") return json(res, 400, { error: "Select a personal Antigravity provider." });
-        const instanceId = `antigravity-${randomUUID()}`;
-        const cli = (source.config as { cli?: unknown } | undefined)?.cli;
-        // Only share the runtime. Each instance gets its own Google profile.
-        instances[instanceId] = { driver: "antigravityAgent", displayName: parsed.data.displayName,
-          config: typeof cli === "string" && cli ? { cli } : {} };
-        await persistProviderInstance(instanceId, instances);
-        return json(res, 201, { instanceId, instances: await describeInstances() });
       } finally { providerConfigBusy = false; }
     }
 
