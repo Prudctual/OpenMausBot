@@ -141,4 +141,34 @@ describe("the update card", () => {
     expect(card()).toBeNull();
     expect(install).not.toHaveBeenCalled();
   });
+
+  it("closes once there is nothing left to act on, and stays for a failure's Try again", async () => {
+    await emit({ status: "downloaded", version: "0.2.0", installMode: "handoff" });
+    await act(async () => button()!.click());
+    await emit({ status: "handed-off", version: "0.2.0", installMode: "handoff", command: "sudo apt install ./x.deb" });
+    expect(card()).toBeNull();
+    // the next update does not reopen it by itself
+    await emit({ status: "downloaded", version: "0.2.1" });
+    expect(card()).toBeNull();
+
+    await act(async () => button()!.click());
+    await emit({ status: "error", message: "boom" });
+    expect(card()!.textContent).toContain("Try again");
+  });
+
+  it("links to all release notes even when none read as highlights", async () => {
+    await emit({ status: "downloaded", version: "0.2.0", releaseNotes: "A steadier build with small fixes." });
+    await act(async () => button()!.click());
+    expect(card()!.querySelectorAll("li")).toHaveLength(0);
+    expect(card()!.textContent).toContain("All release notes");
+  });
+
+  it("uses one md button scale in the footer", async () => {
+    await emit({ status: "downloaded", version: "0.2.0" });
+    await act(async () => button()!.click());
+    const footer = [...card()!.querySelectorAll("button")].slice(-2);
+    for (const node of footer) {
+      for (const token of ["h-7", "text-[13px]", "font-medium", "leading-4", "rounded-full", "gap-2"]) expect(node.className).toContain(token);
+    }
+  });
 });

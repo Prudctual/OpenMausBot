@@ -40,8 +40,15 @@ export function UpdateIndicator({ className }: { className?: string }) {
   const state = useUpdaterState();
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  // Nothing left to act on (no update, a fresh check, or the deb hand-off now
+  // finishing in a terminal, which the popup explains): the card closes. A
+  // failure keeps it open, offering Try again.
+  const settled = !state || state.status === "idle" || state.status === "checking" || state.status === "handed-off";
+  useEffect(() => {
+    if (settled) setOpen(false);
+  }, [settled]);
   if (!state || !updateIndicatorShown(state)) {
-    return open && state ? <UpdateCard state={state} onClose={() => setOpen(false)} returnFocusRef={buttonRef} /> : null;
+    return open && !settled ? <UpdateCard state={state} onClose={() => setOpen(false)} returnFocusRef={buttonRef} /> : null;
   }
   const label = updateIndicatorLabel(state);
   const ready = state.status === "downloaded";
@@ -67,10 +74,11 @@ export function UpdateIndicator({ className }: { className?: string }) {
   );
 }
 
-const primary =
-  "flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-[14px] font-medium leading-5 text-white transition-colors hover:brightness-110 disabled:cursor-default disabled:bg-control disabled:text-ink-secondary disabled:hover:brightness-100";
-const secondary =
-  "flex h-10 items-center justify-center rounded-xl px-4 text-[14px] font-medium leading-5 text-ink-secondary transition-colors hover:bg-control hover:text-ink";
+// The md button: 28px tall, 13px medium on a 16px line, a full pill, 8px
+// between icon and label, the same for both so their labels share a baseline.
+const button = "inline-flex h-7 min-w-0 items-center justify-center gap-2 rounded-full px-3.5 text-[13px] font-medium leading-4 transition-colors";
+const primary = `${button} bg-accent text-white hover:brightness-110 disabled:cursor-default disabled:bg-control disabled:text-ink-secondary disabled:hover:brightness-100`;
+const secondary = `${button} text-ink-secondary hover:bg-control hover:text-ink disabled:opacity-50`;
 
 export function UpdateCard({
   state,
@@ -150,10 +158,10 @@ export function UpdateCard({
           ? t("update.card.tryAgain")
           : handoff ? t("settings.updates.install") : t("update.card.restart");
   const primaryIcon = installing || (downloading && percent == null) || status === "preparing"
-    ? <Loader2 size={16} className="animate-spin" aria-hidden />
+    ? <Loader2 size={14} className="animate-spin" aria-hidden />
     : downloading
-      ? <ArrowDown size={16} aria-hidden />
-      : handoff ? <PackageOpen size={16} aria-hidden /> : <RefreshCw size={16} aria-hidden />;
+      ? <ArrowDown size={14} aria-hidden />
+      : handoff ? <PackageOpen size={14} aria-hidden /> : <RefreshCw size={14} aria-hidden />;
 
   const note = failed
     ? state.message?.split("\n")[0]?.slice(0, 160) || t("update.card.failed")
@@ -181,7 +189,7 @@ export function UpdateCard({
           type="button"
           onClick={onClose}
           aria-label={t("update.card.close")}
-          className="absolute end-3 top-3 flex size-8 items-center justify-center rounded-lg text-ink-secondary hover:bg-control hover:text-ink"
+          className="absolute end-3 top-3 flex size-7 items-center justify-center rounded-full text-ink-secondary hover:bg-control hover:text-ink"
         >
           <X size={16} aria-hidden />
         </button>
@@ -210,15 +218,15 @@ export function UpdateCard({
                 </li>
               ))}
             </ul>
-            <button
-              type="button"
-              onClick={() => void openExternalLink(RELEASES_URL)}
-              className="mt-3 text-[13px] font-medium leading-5 text-accent hover:underline"
-            >
-              {t("update.card.allNotes")}
-            </button>
           </div>
         )}
+        <button
+          type="button"
+          onClick={() => void openExternalLink(RELEASES_URL)}
+          className={cn(highlights.length > 0 ? "mt-3" : "mt-5", "block text-[13px] font-medium leading-5 text-accent hover:underline")}
+        >
+          {t("update.card.allNotes")}
+        </button>
 
         {percent != null && (
           <div
@@ -235,7 +243,7 @@ export function UpdateCard({
 
         <p id="update-card-note" className="mt-4 text-[13px] leading-5 text-ink-secondary">{note}</p>
 
-        <div className="mt-5 flex items-center gap-2">
+        <div className="mt-5 flex items-center justify-end gap-2">
           <button
             ref={laterRef}
             type="button"
