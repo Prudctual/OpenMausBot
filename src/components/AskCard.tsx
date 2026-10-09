@@ -38,7 +38,9 @@ export function AskCard({
       aria-label={ariaLabel}
       data-tour={tour}
       data-ask-card="pending"
-      className="w-full max-w-[600px] rounded-xl border border-accent/30 bg-card px-3.5 py-3 text-start"
+      // the composer's own surface, so an ask reads as part of the
+      // conversation's controls (the approval row uses the same)
+      className="w-full max-w-[600px] rounded-3xl bg-composer px-4 py-3 text-start ring-1 ring-composer-ring"
     >
       <div className="flex min-w-0 items-center gap-2">
         <span aria-hidden="true" className="flex shrink-0 text-accent-text">{icon}</span>
@@ -54,7 +56,7 @@ export function AskCard({
             onClick={onDismiss}
             aria-label={dismissLabel}
             title={dismissLabel}
-            className="-my-1 -me-1.5 flex size-7 shrink-0 items-center justify-center rounded-full text-ink-tertiary hover:bg-control hover:text-ink"
+            className="-my-1 -me-1.5 flex size-7 shrink-0 items-center justify-center rounded-full text-ink-tertiary hover:bg-ink/[0.07] hover:text-ink"
           >
             <X size={14} />
           </button>
@@ -62,7 +64,7 @@ export function AskCard({
       </div>
       {explanation && <div className="mt-1 text-[13px] leading-snug text-ink-secondary">{explanation}</div>}
       {children && <div className="mt-2.5">{children}</div>}
-      {footer && <div className="mt-2.5 flex flex-wrap items-center justify-end gap-2">{footer}</div>}
+      {footer && <div className="mt-3 flex flex-wrap items-center justify-end gap-2">{footer}</div>}
     </div>
   );
 }
@@ -103,36 +105,39 @@ export function AskSettledLine({
 }
 
 /**
- * One type and box for every control on an ask: 13px at weight 500, a
- * 20px line box centered in a fixed height, and the same gap between an
- * icon and its label. A fixed height with a centered line box keeps Arabic
- * and Latin labels on the same baseline band, where vertical padding alone
- * lets each script's font metrics push the text off center.
+ * One type and box for every control on an ask, the same as the approval
+ * row: 28px tall, rounded-full, 13px at weight 500 in a 20px line box
+ * centered in that height, and one 6px gap between an icon and its label.
+ * A fixed height with a centered line box keeps Arabic and Latin labels on
+ * the same baseline band, where vertical padding alone lets each script's
+ * font metrics push the text off center. Rows of controls use an 8px gap.
  */
 const ASK_CONTROL =
-  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[13px] font-medium leading-5 transition-colors [&>svg]:shrink-0 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-7 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[13px] font-medium leading-5 transition-colors [&>svg]:shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40";
 
 /** The main action: the accent fill. `accent-ink` rather than white, since
  * Foundry's brass accent needs dark ink to stay readable. */
 export const ASK_PRIMARY_BUTTON =
-  `${ASK_CONTROL} h-8 rounded-full border border-transparent bg-accent px-3.5 text-accent-ink hover:brightness-110`;
+  `${ASK_CONTROL} bg-accent text-accent-ink hover:brightness-110`;
 
-/** A choice. The same height and type as the main action, outlined until
- * it is picked, then tinted with the accent. */
-export const ASK_CHIP = `${ASK_CONTROL} h-8 max-w-full rounded-full border px-3.5`;
-export const ASK_CHIP_IDLE = "border-hairline/70 text-ink hover:bg-raised-hover/60";
+/** A choice. The same height and type as the main action, a neutral tint
+ * until it is picked, then outlined and tinted with the accent. */
+export const ASK_CHIP = `${ASK_CONTROL} max-w-full border`;
+/** The approval row's neutral fill: a tint of the ink, so it shows on the
+ * composer surface in every skin, where a hairline border does not. */
+export const ASK_CHIP_IDLE = "border-transparent bg-ink/[0.07] text-ink hover:bg-ink/[0.12]";
 export const ASK_CHIP_PICKED = "border-accent bg-accent/15 text-ink";
 
-/** A smaller pill: question tabs, and the quiet actions on a settled line
- * (Details, Continue task, Try again). Same type, shorter box. */
-export const ASK_SMALL_PILL = `${ASK_CONTROL} h-7 rounded-full px-3`;
+/** Question tabs, and the quiet actions on a settled line (Details,
+ * Continue task, Try again). Same box and type, no fill until hovered. */
+export const ASK_SMALL_PILL = ASK_CONTROL;
 /** The negative margin keeps a settled line one text line tall while the
  * button keeps its full 28px target. */
-export const ASK_QUIET_BUTTON = `${ASK_SMALL_PILL} -my-1 text-ink-tertiary hover:bg-inset hover:text-ink-secondary`;
+export const ASK_QUIET_BUTTON = `${ASK_SMALL_PILL} -my-1 text-ink-tertiary hover:bg-ink/[0.07] hover:text-ink-secondary`;
 
 /** A one-line field beside a button: the button's height and type. */
 export const ASK_FIELD =
-  "h-8 rounded-lg border border-hairline/60 bg-inset px-3 text-[13px] leading-5 text-ink outline-none placeholder:text-ink-tertiary focus:border-accent disabled:opacity-60";
+  "h-7 rounded-full border border-hairline/60 bg-inset px-3 text-[13px] leading-5 text-ink outline-none placeholder:text-ink-tertiary focus:border-accent disabled:opacity-60";
 
 /** An answered ask folds away with the control that answered it, which
  * would drop keyboard focus onto the page. Hand it to the composer, where

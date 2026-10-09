@@ -223,7 +223,7 @@ export function QuestionCard({
       )}
 
       {questions.length > 1 && (
-        <div role="tablist" aria-label={t("question.aria.tabs")} className="-mt-0.5 mb-2 flex flex-wrap gap-1">
+        <div role="tablist" aria-label={t("question.aria.tabs")} className="-mt-0.5 mb-2 flex flex-wrap items-center gap-2">
           {questions.map((question, index) => (
             <button
               key={`${index}-${question.question}`}
@@ -234,8 +234,8 @@ export function QuestionCard({
               className={cn(
                 ASK_SMALL_PILL,
                 index === currentIndex
-                  ? "bg-control text-ink"
-                  : "text-ink-secondary hover:bg-control/60 hover:text-ink",
+                  ? "bg-ink/[0.07] text-ink"
+                  : "text-ink-secondary hover:bg-ink/[0.07] hover:text-ink",
               )}
             >
               {answered[index] && <Check size={14} className="text-success" />}
@@ -253,8 +253,8 @@ export function QuestionCard({
         aria-label={current.question}
         onKeyDown={moveChoiceFocus}
         className={chips
-          ? "mt-2.5 flex flex-wrap gap-1.5"
-          : "mt-2.5 overflow-hidden rounded-lg border border-hairline/40"}
+          ? "mt-2.5 flex flex-wrap items-center gap-2"
+          : "mt-2.5 overflow-hidden rounded-2xl border border-hairline/40"}
       >
         {current.options.map((option, index) => {
           const picked = draft.picked.includes(option.label);

@@ -138,7 +138,9 @@ describe("QuestionCard", () => {
     expect(questionUsesChips(questionRequest.questions[1]!)).toBe(true);
     expect(questionUsesChips(questionRequest.questions[0]!)).toBe(false);
     const chips = render(message({ questionRequest: { version: 1, questions: [questionRequest.questions[1]!] } }));
-    expect(chips).toContain("rounded-full border");
+    // the approval row's scale: 28px pills at 13px medium, 8px apart
+    expect(chips).toMatch(/data-ask-choice="" role="radio" aria-checked="false" class="inline-flex h-7 [^"]*rounded-full[^"]*text-\[13px\] font-medium/);
+    expect(chips).toContain("flex flex-wrap items-center gap-2");
     expect(chips).toContain("data-ask-choice");
   });
 
