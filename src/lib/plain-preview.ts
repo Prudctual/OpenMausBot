@@ -24,7 +24,8 @@ export function plainPreviewText(text: string): string {
     code.push(body.replace(/\uE000(\d+)\uE001/g, (_match, index: string) => `\\${escaped[Number(index)] ?? ""}`));
     return `\uE002${code.length - 1}\uE003`;
   };
-  out = out.replace(/^[ \t]*(`{3,}|~{3,})[^\n]*(?:\n([\s\S]*?))?(?:\n[ \t]*\1[ \t]*(?=\n|$(?![\s\S]))|$(?![\s\S]))/gm, (_block, _fence: string, body: string | undefined) => `\n${park(body ?? "")}\n`);
+  // (a closing fence is the same character, at least as long as the opening)
+  out = out.replace(/^[ \t]*((`|~)\2{2,})[^\n]*(?:\n([\s\S]*?))?(?:\n[ \t]*\1\2*[ \t]*(?=\n|$(?![\s\S]))|$(?![\s\S]))/gm, (_block, _fence: string, _char: string, body: string | undefined) => `\n${park(body ?? "")}\n`);
   out = out.replace(/(`+)([^`]*?)\1/g, (_span, _ticks: string, body: string) => park(body));
   // images read as their alt text, links as their label
   out = out.replace(/!\[([^\]]*)\]\((?:[^()]|\([^)]*\))*\)/g, "$1");
