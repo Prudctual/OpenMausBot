@@ -17,7 +17,7 @@ const css = readFileSync(join(src, "styles.css"), "utf8");
 function rule(selector: string): Record<string, string> {
   const start = css.indexOf(`  ${selector} {`);
   expect(start, selector).toBeGreaterThanOrEqual(0);
-  const body = css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start));
+  const body = css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start)).replace(/\/\*[\s\S]*?\*\//g, "");
   return Object.fromEntries(body.split(";").map((line) => line.trim()).filter(Boolean)
     .map((line) => [line.slice(0, line.indexOf(":")).trim(), line.slice(line.indexOf(":") + 1).trim()]));
 }
