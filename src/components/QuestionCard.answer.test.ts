@@ -29,8 +29,13 @@ function mount(questions: AskQuestion[]) {
   act(() => root.render(createElement(BotEditorStore, { value: store, children: createElement(QuestionCard, { threadId: "t1", bot: { name: "Dev" }, message }) })));
 }
 
+// an option row reads "A" (its key badge) then the label, so match the
+// label at the end of the text
 const button = (label: string) =>
-  Array.from(host.querySelectorAll("button")).find((element) => element.textContent?.trim() === label)!;
+  Array.from(host.querySelectorAll("button")).find((element) => {
+    const text = element.textContent?.trim() ?? "";
+    return text === label || (element.hasAttribute("data-ask-choice") && text.slice(1) === label);
+  })!;
 
 function type(field: HTMLTextAreaElement, value: string) {
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
@@ -83,9 +88,15 @@ describe("QuestionCard answered in one step", () => {
     expect(host.querySelector('[data-ask-card="settled"]')?.textContent).toContain("Choose a plan · Pro");
   });
 
-  it("still waits for Submit when Other is the answer", () => {
+  it("sends a single pick from its letter key too", () => {
     mount([plan]);
-    act(() => button("Other").click());
+    press(host.querySelector('[role="radio"]')!, { key: "b" });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch.mock.calls[0]![0].message).toContain("A: Pro");
+  });
+
+  it("waits for Submit or Enter when they type their own answer", () => {
+    mount([plan]);
     const field = host.querySelector("textarea")!;
     type(field, "Enterprise");
     expect(dispatch).not.toHaveBeenCalled();
@@ -102,7 +113,6 @@ describe("QuestionCard answered in one step", () => {
   it("answers an open question in a text field: Shift+Enter breaks the line, Enter sends", () => {
     mount([name]);
     expect(host.querySelector('[role="radiogroup"]')).toBeNull();
-    expect(button("Other")).toBeUndefined();
     const field = host.querySelector("textarea")!;
     expect(field.getAttribute("dir")).toBe("auto");
     type(field, "omb-preview");

@@ -440,7 +440,7 @@ export const Transcript = memo(function Transcript({
           ) : m.kind === "options" && m.card?.requestId && m.card.questionRequest ? (
             <div className="flex justify-start">
               <MessageBoundary fallbackText={m.card.subtitle || m.card.title || ""}>
-                <QuestionCard threadId={group.threadId} bot={memberOf(m.from?.botId)} message={m} />
+                <QuestionCard threadId={group.threadId} bot={memberOf(m.from?.botId)} message={m} botId={m.from?.botId} groupId={group.id} />
               </MessageBoundary>
             </div>
           ) : m.kind === "options" && m.card?.requestId && m.card.tool ? (

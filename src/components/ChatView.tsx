@@ -978,7 +978,7 @@ const MessagesList = memo(function MessagesList({
               // draw must fall back to its text on every open, not take the
               // whole page down every time this chat is selected.
               const card = m.card?.requestId && m.card.questionRequest ? (
-                <QuestionCard threadId={threadId} bot={{ name: botName }} message={m} />
+                <QuestionCard threadId={threadId} bot={{ name: botName }} message={m} botId={botId} />
               ) : m.card?.requestId && m.card.tool ? (
                 <ApprovalCard bot={{ name: botName }} message={m} threadId={threadId} />
               ) : shouldHideOnboardingCard(m, transcript) ? null : (

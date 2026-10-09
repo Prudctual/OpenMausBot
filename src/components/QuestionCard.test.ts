@@ -19,7 +19,7 @@ vi.mock("@/state/store", async (importOriginal) => ({
   useStore: () => ({ state: {}, dispatch: fixture.dispatch }),
 }));
 
-const { QuestionCard, questionUsesChips, settledQuestionLine } = await import("./QuestionCard");
+const { QuestionCard, choiceIndexForKey, choiceKey, settledQuestionLine } = await import("./QuestionCard");
 
 afterAll(() => vi.unstubAllGlobals());
 
@@ -100,7 +100,7 @@ describe("QuestionCard", () => {
     expect(markup).toContain("Model");
     expect(markup).toContain("Style");
     expect(markup).toContain("0 of 2 answered");
-    expect(markup).toContain("Other");
+    expect(markup).toContain('placeholder="Type your own answer"');
   });
 
   it("cannot be submitted before every question is answered", () => {
@@ -126,35 +126,33 @@ describe("QuestionCard", () => {
     expect(markup).not.toContain('role="radiogroup"');
   });
 
-  it("leads a single question with its header as the accent title, and names the bot quietly", () => {
+  it("makes a short single question the title, in plain ink", () => {
     const single = message({ questionRequest: { version: 1, questions: [questionRequest.questions[1]!] } });
     const markup = render(single);
-    expect(markup).toMatch(/text-accent-text[^"]*"><bdi dir="auto">Style</);
-    expect(markup).toContain("Hazelnut");
-    expect(markup).not.toContain("Hazelnut has a question");
+    expect(markup).toMatch(/text-\[15px\] font-semibold leading-6 text-ink"><bdi dir="auto">Which style should it write in\?</);
+    expect(markup).not.toContain("text-accent-text\"><bdi");
   });
 
-  it("draws options without descriptions as chips and options with them as rows", () => {
-    expect(questionUsesChips(questionRequest.questions[1]!)).toBe(true);
-    expect(questionUsesChips(questionRequest.questions[0]!)).toBe(false);
-    const chips = render(message({ questionRequest: { version: 1, questions: [questionRequest.questions[1]!] } }));
-    // the approval row's scale: 28px pills at 13px medium, 8px apart
-    expect(chips).toMatch(/data-ask-choice="" role="radio" aria-checked="false" class="inline-flex h-7 [^"]*rounded-full[^"]*text-\[13px\] font-medium/);
-    expect(chips).toContain("flex flex-wrap items-center gap-2");
-    expect(chips).toContain("data-ask-choice");
-  });
-
-  it("gives long options their own separate rows that wrap, with a marker each", () => {
-    const long = "A new analytical piece on reasoning models and what they change";
-    const question = { question: "Which article?", options: [{ label: long }, { label: "Chip race" }] };
-    expect(questionUsesChips(question)).toBe(false);
+  it("puts the options in one rounded group, each keyed by a letter", () => {
+    const question = { question: "Which article?", options: [{ label: "A new analytical piece on reasoning models and what they change" }, { label: "Chip race" }, { label: "Blackwell" }] };
     const markup = render(message({ questionRequest: { version: 1, questions: [question] } }));
-    // separate surfaces 6px apart, not one box split by dividers
-    expect(markup).toContain("mt-2.5 flex flex-col gap-1.5");
-    expect(markup).not.toContain("border-t border-hairline");
-    expect(markup).toMatch(/role="radio" aria-checked="false" dir="auto" class="[^"]*rounded-2xl[^"]*bg-ink\/\[0\.05\][^"]*hover:bg-ink\/\[0\.09\]/);
-    expect(markup).toMatch(/break-words text-\[13px\] font-medium leading-5 text-ink">A new analytical piece/);
-    expect(markup.match(/rounded-full border-ink-tertiary/g)?.length).toBe(3);
+    expect(markup).toContain("divide-y divide-ink/[0.12] overflow-hidden rounded-2xl border border-ink/[0.12]");
+    expect(markup).toMatch(/role="radio" aria-checked="false" aria-keyshortcuts="A" class=/);
+    expect(markup).toMatch(/aria-keyshortcuts="C"/);
+    expect(markup).toMatch(/rounded-md text-\[12px\] font-medium[^"]*">A</);
+    expect(markup).toMatch(/break-words text-\[15px\] leading-6 text-ink \[unicode-bidi:plaintext\]">A new analytical piece/);
+    // no radio circles and a separate field under the group
+    expect(markup).not.toContain("rounded-full border-");
+    expect(markup).toContain('placeholder="Type your own answer"');
+  });
+
+  it("maps letter keys to options and ignores anything else", () => {
+    expect([0, 1, 2, 25].map(choiceKey)).toEqual(["A", "B", "C", "Z"]);
+    expect(choiceIndexForKey("a", 3)).toBe(0);
+    expect(choiceIndexForKey("C", 3)).toBe(2);
+    expect(choiceIndexForKey("d", 3)).toBe(-1);
+    expect(choiceIndexForKey("Enter", 3)).toBe(-1);
+    expect(choiceIndexForKey("1", 3)).toBe(-1);
   });
 
   it("offers no free text on an options-only question", () => {
@@ -162,7 +160,7 @@ describe("QuestionCard", () => {
       questionRequest: { version: 1, questions: [{ question: "Which article?", custom: false, options: [{ label: "Machines of Loving Grace" }, { label: "Reasoning models" }] }] },
     }));
     expect(markup).toContain("Machines of Loving Grace");
-    expect(markup).not.toContain(">Other<");
+    expect(markup).not.toContain("Type your own answer");
   });
 
   it("folds an answered card into one line, with the full answer behind Details", () => {

@@ -5,13 +5,13 @@
 // arrived as "Deny / Always allow / Allow once" over a question like "which
 // model should this bot run on?", which is not an answer to anything.
 //
-// One tab per question (the model names them), the model's options as chips
-// (or rows, when they carry descriptions), an "Other" choice for a reply it
-// did not think of, and a single submit that sends every answer back at
-// once. It sits in the shared AskCard shell, and folds into one line once
-// it is answered.
-import { useMemo, useState } from "react";
-import { Check, MessageCircleQuestion, X } from "lucide-react";
+// The question itself is the title. Its options sit in one rounded group,
+// each row keyed by a letter (A, B, C) that is also its keyboard shortcut,
+// with a free-text field under the group for a reply the model did not
+// think of. A set of questions gets one tab each and a single submit. It
+// sits in the shared AskCard shell, and folds into one line once answered.
+import { useMemo, useState, type KeyboardEvent } from "react";
+import { Check, X } from "lucide-react";
 import { useStore, type Bot, type Message } from "@/state/store";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
@@ -23,10 +23,6 @@ import {
   type AskQuestion,
 } from "../../shared/ask-question";
 import {
-  ASK_CHIP,
-  ASK_CHIP_IDLE,
-  ASK_CHIP_PICKED,
-  ASK_FIELD,
   ASK_PRIMARY_BUTTON,
   ASK_QUIET_BUTTON,
   ASK_SMALL_PILL,
@@ -43,13 +39,12 @@ import { ExpandableText } from "./ExpandableText";
 interface Draft {
   picked: string[];
   custom: string;
-  /** "Other" is open. An empty open field is not an answer. */
+  /** the field holds an answer of their own. An empty field is not one. */
   other: boolean;
 }
 
 const EMPTY: Draft = { picked: [], custom: "", other: false };
-/** A question with nothing to choose from is answered in words, so its
- * text field is open from the start instead of behind "Other". */
+/** A question with nothing to choose from is answered in words only. */
 const OPEN: Draft = { picked: [], custom: "", other: true };
 
 /** Where an untouched question's draft starts. */
@@ -73,22 +68,28 @@ function tabLabel(question: AskQuestion, index: number): string {
   return question.header ?? t("question.tab.numbered", { index: index + 1 });
 }
 
-/** Options with no description read best as a row of chips; any
- * description needs the room of a full row. */
-export function questionUsesChips(question: AskQuestion): boolean {
-  return question.options.every((option) => !option.description && option.label.length <= CHIP_MAX_LABEL);
+/** The key that picks option `index`: A, B, C… Shown on the row and
+ * pressed on the keyboard. Latin in every locale, since it is a key. */
+export function choiceKey(index: number): string {
+  return String.fromCharCode(65 + index);
 }
 
-/** Longer than this a label stops reading as a pill: it would truncate, so
- * it gets a row of its own that can wrap. */
-const CHIP_MAX_LABEL = 32;
+/** Option index for a pressed key, or -1. Plain letters only: a shortcut
+ * never fires while typing in a field or with a modifier held. */
+export function choiceIndexForKey(key: string, count: number): number {
+  if (key.length !== 1) return -1;
+  const index = key.toUpperCase().charCodeAt(0) - 65;
+  return index >= 0 && index < count && index < 26 ? index : -1;
+}
 
-/** One choice as its own row: a separate surface with a gap to the next,
- * so a set of rows never reads as one joined box. */
+/** Up to this length the question is the card's title. A longer one keeps
+ * a short title and opens below it with its own "show full question". */
+const TITLE_MAX = 160;
+
 const CHOICE_ROW =
-  "flex w-full items-start gap-2.5 rounded-2xl px-3 py-2 text-start ring-1 ring-inset transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-const CHOICE_ROW_IDLE = "bg-ink/[0.05] ring-transparent hover:bg-ink/[0.09]";
-const CHOICE_ROW_PICKED = "bg-accent/15 ring-accent/60";
+  "flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors focus-visible:bg-ink/[0.06] focus-visible:outline-none";
+const CHOICE_ROW_IDLE = "hover:bg-ink/[0.04]";
+const CHOICE_ROW_PICKED = "bg-ink/[0.07]";
 
 /**
  * The one line an answered card folds into: what was asked, then what was
@@ -123,6 +124,8 @@ export function QuestionCard({
   threadId,
   bot,
   message,
+  botId,
+  groupId,
 }: {
   /** answered by THREAD, so a question raised inside a room settles the
    * same way as one in a 1:1 chat */
@@ -130,6 +133,10 @@ export function QuestionCard({
   /** who is asking, for the "Name has a question" line */
   bot?: Pick<Bot, "name">;
   message: Message;
+  /** the asking bot, so the X can close the question. No X without it. */
+  botId?: string;
+  /** the room the question was raised in, when it was */
+  groupId?: string;
 }) {
   const { dispatch } = useStore();
   const card = message.card;
@@ -168,9 +175,9 @@ export function QuestionCard({
     }
     // Single-select is a radio group: picking replaces, and picking an
     // option means the free-text answer was not the one they wanted.
-    update(currentIndex, { picked: [label], other: false });
+    update(currentIndex, { picked: [label], other: false, custom: "" });
     if (oneTap) {
-      send({ ...drafts, [currentIndex]: { ...draft, picked: [label], other: false } });
+      send({ ...drafts, [currentIndex]: { picked: [label], other: false, custom: "" } });
       return;
     }
     // Move to the next question they still owe an answer to, the way the
@@ -180,14 +187,25 @@ export function QuestionCard({
     if (next >= 0) setActive(next);
   };
 
-  const toggleOther = () => {
+  // Typing an answer of their own replaces a single pick: the field is the
+  // answer now. A multi-select keeps its picks beside the typed one.
+  const type = (value: string) => {
     if (settled) return;
-    if (draft.other) {
-      update(currentIndex, { other: false });
-      return;
-    }
-    update(currentIndex, { other: true, ...(current.multiSelect ? {} : { picked: [] }) });
+    update(currentIndex, {
+      custom: value,
+      other: value.trim().length > 0,
+      ...(current.multiSelect || !value.trim() ? {} : { picked: [] }),
+    });
   };
+
+  const dismiss = botId
+    ? () => {
+        if (settled) return;
+        setSent("");
+        returnFocusToComposer();
+        dispatch({ type: "dismissCard", botId, threadId, messageId: message.id, groupId });
+      }
+    : undefined;
 
   const submit = () => {
     if (complete) send(drafts);
@@ -217,7 +235,7 @@ export function QuestionCard({
     const answer = card.answeredText ?? sent;
     // A question nobody answered (the run ended, or it was closed) is not
     // "answered": say so, and offer nothing to expand.
-    if (!answer && card.answered && card.answered !== "answer") {
+    if (sent === "" || (!answer && card.answered && card.answered !== "answer")) {
       return (
         <AskSettledLine ariaLabel={t("question.aria.card")} icon={<X size={13} />}>
           {t("question.status.closed")}
@@ -229,36 +247,43 @@ export function QuestionCard({
 
   const single = questions.length === 1;
   const named = bot ? t("question.card.named", { name: bot.name }) : t("question.card.title");
-  // One question with a header leads with that header ("Choose a plan");
-  // the bot's name moves to the quiet end of the line so a room still says
-  // who is asking.
-  const title = single && current.header ? current.header : named;
-  const meta = !single
-    ? t("question.progress", { answered: answeredCount, count: questions.length })
-    : single && current.header && bot ? bot.name : undefined;
-  const chips = questionUsesChips(current);
+  // The question is the title, the way a person would ask it. A long one,
+  // or a set of them, keeps a short title and shows the text below.
+  const questionIsTitle = single && current.question.length <= TITLE_MAX;
+  const title = questionIsTitle ? current.question : single && current.header ? current.header : named;
+  const meta = !single ? t("question.progress", { answered: answeredCount, count: questions.length }) : undefined;
   const multi = Boolean(current.multiSelect);
+  const freeText = current.custom !== false;
+
+  // A, B, C pick an option from anywhere on the card except a text field.
+  const onCardKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (event.altKey || event.ctrlKey || event.metaKey || target.closest("input, textarea")) return;
+    const index = choiceIndexForKey(event.key, current.options.length);
+    if (index < 0) return;
+    event.preventDefault();
+    choose(current.options[index]!.label);
+  };
 
   return (
     <AskCard
       ariaLabel={t("question.aria.card")}
-      icon={<MessageCircleQuestion size={15} />}
+      plain
       title={title}
       meta={meta}
-      footer={
+      onKeyDown={onCardKey}
+      onDismiss={dismiss}
+      dismissLabel={t("question.close")}
+      // a single pick answers in one tap, so there is nothing to submit
+      // until they type an answer of their own
+      footer={oneTap && !draft.custom.trim() ? undefined : (
         <>
-          <span className="me-auto text-[12px] text-ink-tertiary">
-            {oneTap && !draft.other ? t("question.status.pickOne") : t("question.status.waiting")}
-          </span>
-          {/* a one-tap card has nothing to submit until "Other" is open:
-              picking an option already sent it */}
-          {!(oneTap && !draft.other) && (
-            <button type="button" onClick={submit} disabled={!complete} className={ASK_PRIMARY_BUTTON}>
-              {questions.length > 1 ? t("question.submitAll") : t("question.submit")}
-            </button>
-          )}
+          <span className="me-auto text-[12px] text-ink-tertiary">{t("question.status.waiting")}</span>
+          <button type="button" onClick={submit} disabled={!complete} className={ASK_PRIMARY_BUTTON}>
+            {questions.length > 1 ? t("question.submitAll") : t("question.submit")}
+          </button>
         </>
-      }
+      )}
     >
       {card.questionRequest?.origin === "output" && (
         <div className="-mt-1 mb-1.5 text-[12px] text-ink-secondary">{t("question.origin.badge")}</div>
@@ -287,83 +312,65 @@ export function QuestionCard({
         </div>
       )}
 
-      <ExpandableText text={current.question} className="text-[14px] leading-relaxed text-ink" />
-      {multi && <div className="mt-0.5 text-[12px] text-ink-tertiary">{t("question.multiHint")}</div>}
+      {!questionIsTitle && (
+        <ExpandableText text={current.question} className="mb-2.5 text-[14px] leading-relaxed text-ink" />
+      )}
+      {multi && <div className="-mt-1 mb-2 text-[12px] text-ink-tertiary">{t("question.multiHint")}</div>}
 
       {current.options.length > 0 && (
         <div
           role={multi ? "group" : "radiogroup"}
           aria-label={current.question}
           onKeyDown={moveChoiceFocus}
-          className={chips
-            ? "mt-2.5 flex flex-wrap items-center gap-2"
-            : "mt-2.5 flex flex-col gap-1.5"}
+          // one rounded group with hairlines between the rows
+          // (an ink tint rather than `hairline`, which vanishes on the
+          // composer surface in the dark skins)
+          className="divide-y divide-ink/[0.12] overflow-hidden rounded-2xl border border-ink/[0.12]"
         >
-          {current.options.map((option) => {
+          {current.options.map((option, index) => {
             const picked = draft.picked.includes(option.label);
-            return chips ? (
-              <Chip
-                key={option.label}
-                multi={multi}
-                checked={picked}
-                onClick={() => choose(option.label)}
-                label={option.label}
-              />
-            ) : (
+            return (
               <button
                 key={option.label}
                 type="button"
                 data-ask-choice=""
                 role={multi ? "checkbox" : "radio"}
                 aria-checked={picked}
+                aria-keyshortcuts={choiceKey(index)}
                 onClick={() => choose(option.label)}
-                // the row takes its direction from the label, so an arabic
-                // option puts its marker on the right and wraps from there
-                dir="auto"
+                // the row follows the chat's direction, so the key badge
+                // sits at the start and mirrors in a right-to-left chat
                 className={cn(CHOICE_ROW, picked ? CHOICE_ROW_PICKED : CHOICE_ROW_IDLE)}
               >
-                <Marker checked={picked} multi={multi} />
+                <KeyBadge letter={choiceKey(index)} picked={picked} />
                 <span className="min-w-0 flex-1">
-                  <span className="block break-words text-[13px] font-medium leading-5 text-ink">{option.label}</span>
+                  {/* plaintext bidi: each label orders its own script, while
+                      it still lines up at the row's start beside the badge */}
+                  <span className="block break-words text-[15px] leading-6 text-ink [unicode-bidi:plaintext]">{option.label}</span>
                   {option.description && (
-                    <span className="block break-words text-[12.5px] leading-snug text-ink-secondary">{option.description}</span>
+                    <span className="block break-words text-[13px] leading-snug text-ink-secondary [unicode-bidi:plaintext]">{option.description}</span>
                   )}
                 </span>
+                {multi && picked && <Check size={16} strokeWidth={2.5} aria-hidden="true" className="shrink-0 text-accent-text" />}
               </button>
             );
           })}
-          {/* an options-only question (an ACP engine answers with an option
-              id, never text) has no free-text choice it could send */}
-          {current.custom === false ? null : chips ? (
-            <Chip multi={multi} checked={draft.other} onClick={toggleOther} label={t("question.other")} />
-          ) : (
-            <button
-              type="button"
-              data-ask-choice=""
-              role={multi ? "checkbox" : "radio"}
-              aria-checked={draft.other}
-              onClick={toggleOther}
-              className={cn(CHOICE_ROW, draft.other ? CHOICE_ROW_PICKED : CHOICE_ROW_IDLE)}
-            >
-              <Marker checked={draft.other} multi={multi} />
-              <span className="text-[13px] font-medium leading-5 text-ink">{t("question.other")}</span>
-            </button>
-          )}
         </div>
       )}
-      {draft.other && current.custom !== false && (
+      {/* an options-only question (an ACP engine answers with an option
+          id, never text) has no free-text answer it could send */}
+      {freeText && (
         // A textarea, so an answer can run to a few lines: Enter sends,
-        // Shift+Enter starts a new line. It grows with its text up to a cap.
-        // Focus moves here only when the person opened "Other"; an open
-        // question does not take the cursor away from the composer.
+        // Shift+Enter starts a new line, and it grows with its text up to a
+        // cap. It never takes focus on its own, so a question that arrives
+        // while they type in the composer does not steal the cursor.
         <textarea
-          autoFocus={current.options.length > 0}
           dir="auto"
           rows={1}
           value={draft.custom}
           maxLength={MAX_CUSTOM_ANSWER}
           aria-label={current.options.length ? t("question.otherPlaceholder") : current.question}
-          onChange={(event) => update(currentIndex, { custom: event.target.value })}
+          onChange={(event) => type(event.target.value)}
           onKeyDown={(event) => {
             if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
             event.preventDefault();
@@ -371,12 +378,8 @@ export function QuestionCard({
           }}
           placeholder={current.options.length ? t("question.otherPlaceholder") : t("question.answerPlaceholder")}
           className={cn(
-            ASK_FIELD,
-            // grows with its text: the 28px start is one line, like every
-            // pill on the card, and a 14px radius stays a pill at one line
-            // without turning a longer answer into a capsule
-            "block h-auto max-h-40 min-h-7 w-full resize-none rounded-[14px] py-[3px] [field-sizing:content]",
-            current.options.length > 0 ? "mt-2" : "mt-2.5",
+            "block max-h-40 min-h-11 w-full resize-none rounded-xl border border-ink/[0.12] bg-inset px-3 py-2.5 text-[15px] leading-6 text-ink outline-none placeholder:text-ink-tertiary focus:border-accent/70 [field-sizing:content]",
+            current.options.length > 0 && "mt-2.5",
           )}
         />
       )}
@@ -409,45 +412,18 @@ function SettledQuestion({ questions, answer }: { questions: readonly AskQuestio
   );
 }
 
-/** One choice as a pill. Chosen reads as filled, so a set of picks is
- * visible at a glance without a separate marker. */
-function Chip({ label, checked, multi, onClick }: { label: string; checked: boolean; multi: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      data-ask-choice=""
-      role={multi ? "checkbox" : "radio"}
-      aria-checked={checked}
-      onClick={onClick}
-      className={cn(
-        ASK_CHIP,
-        checked ? ASK_CHIP_PICKED : ASK_CHIP_IDLE,
-      )}
-    >
-      {checked && <Check size={14} className="text-accent-text" strokeWidth={2.5} />}
-      <span dir="auto" className="min-w-0 truncate">{label}</span>
-    </button>
-  );
-}
-
-/** The radio dot / checkbox tick. Drawn rather than an <input> so the whole
- * row stays one button and the hit target is the row, not the 16px circle. */
-function Marker({ checked, multi }: { checked: boolean; multi: boolean }) {
+/** The letter that picks a row. Small and neutral, a touch stronger when
+ * its row is the pick. */
+function KeyBadge({ letter, picked }: { letter: string; picked: boolean }) {
   return (
     <span
-      aria-hidden
+      aria-hidden="true"
       className={cn(
-        "mt-0.5 flex size-4 shrink-0 items-center justify-center border",
-        multi ? "rounded-[5px]" : "rounded-full",
-        checked ? "border-accent bg-accent" : "border-ink-tertiary/70",
+        "flex size-6 shrink-0 items-center justify-center rounded-md text-[12px] font-medium leading-none transition-colors",
+        picked ? "bg-ink/[0.16] text-ink" : "bg-ink/[0.08] text-ink-secondary",
       )}
     >
-      {checked &&
-        (multi ? (
-          <Check size={11} className="text-accent-ink" strokeWidth={3} />
-        ) : (
-          <span className="size-1.5 rounded-full bg-accent-ink" />
-        ))}
+      {letter}
     </span>
   );
 }
