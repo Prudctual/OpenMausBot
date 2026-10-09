@@ -1069,6 +1069,7 @@
   "error.plain.connection": "The connection dropped. Try again.",
   "error.plain.timeout": "That took too long. Try again.",
   "error.plain.access": "Access was refused. Check the sign-in, then try again.",
+  "error.plain.permission": "This computer didn't allow that. Check the file or folder permissions, then try again.",
   "error.plain.notFound": "That couldn't be found. It may have been removed.",
   "error.plain.tooLarge": "That's too large to send.",
   "error.plain.server": "Something went wrong on the other end. Try again.",

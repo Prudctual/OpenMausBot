@@ -16,6 +16,9 @@ describe("plainErrorLine", () => {
     ["API Error: 400 Claude Code 2.1.268 does not support this model; version 2.1.280 or newer is required.", "Claude Code 2.1.268 does not support this model; version 2.1.280 or newer is required."],
     ["OpenRouter HTTP 404: model qwen-9 not found", "model qwen-9 not found"],
     ["HTTP 503", "The service is busy right now. Try again in a moment."],
+    ["HTTP 502 Bad Gateway", "Something went wrong on the other end. Try again."],
+    ["upstream HTTP 503 Service Unavailable", "The service is busy right now. Try again in a moment."],
+    ["EACCES: permission denied, open '/Users/sam/notes.md'", "This computer didn't allow that. Check the file or folder permissions, then try again."],
     ["upstream HTTP 401: {\"error\":{\"message\":\"invalid x-api-key\"}}", "Access was refused. Check the sign-in, then try again."],
     ["read ECONNRESET", "The connection dropped. Try again."],
     ["TypeError: Cannot read properties of undefined (reading 'id')", "Something went wrong. Try again."],
@@ -35,6 +38,7 @@ describe("plainErrorLine", () => {
     "Your Pro plan includes 2 cloud computers at once. Delete one to start another.",
     "ChatGPT plan usage limit reached (subscription_sharing_usage_limit_exceeded)",
     "no activity for 10 minutes — the turn was stopped",
+    "The server returned HTTP 503. Wait for the scheduled maintenance to finish, then try again.",
     "Couldn't undo that change.",
     "",
   ])("keeps a sentence a person can read: %j", (raw) => {
