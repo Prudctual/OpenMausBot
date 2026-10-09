@@ -926,13 +926,11 @@ let katexLoad: Promise<void> | null = null;
 export function ensureChatKatex(): Promise<void> {
   if (katexPlugin) return Promise.resolve();
   katexLoad ??= import("rehype-katex").then(async (mod) => {
+    if (typeof document !== "undefined") await import("katex/dist/katex.min.css");
     katexPlugin = mod.default;
-    if (typeof document === "undefined") return;
-    try {
-      await import("katex/dist/katex.min.css");
-    } catch {
-      // Node tests have a document in some environments and no CSS loader.
-    }
+  }).catch(error => {
+    katexLoad = null;
+    throw error;
   });
   return katexLoad;
 }
@@ -1145,6 +1143,9 @@ function ChatMarkdownComponent({ text, message, mentionPeers = NO_MENTION_PEERS,
     let alive = true;
     void ensureChatKatex().then(() => {
       if (alive) setKatexReady(true);
+    }, () => {
+      // Keep the formula readable as source. A later math message can retry
+      // a failed download instead of inheriting a permanently rejected load.
     });
     return () => {
       alive = false;
