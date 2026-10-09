@@ -144,6 +144,27 @@ describe("QuestionCard", () => {
     expect(chips).toContain("data-ask-choice");
   });
 
+  it("gives long options their own separate rows that wrap, with a marker each", () => {
+    const long = "A new analytical piece on reasoning models and what they change";
+    const question = { question: "Which article?", options: [{ label: long }, { label: "Chip race" }] };
+    expect(questionUsesChips(question)).toBe(false);
+    const markup = render(message({ questionRequest: { version: 1, questions: [question] } }));
+    // separate surfaces 6px apart, not one box split by dividers
+    expect(markup).toContain("mt-2.5 flex flex-col gap-1.5");
+    expect(markup).not.toContain("border-t border-hairline");
+    expect(markup).toMatch(/role="radio" aria-checked="false" dir="auto" class="[^"]*rounded-2xl[^"]*bg-ink\/\[0\.05\][^"]*hover:bg-ink\/\[0\.09\]/);
+    expect(markup).toMatch(/break-words text-\[13px\] font-medium leading-5 text-ink">A new analytical piece/);
+    expect(markup.match(/rounded-full border-ink-tertiary/g)?.length).toBe(3);
+  });
+
+  it("offers no free text on an options-only question", () => {
+    const markup = render(message({
+      questionRequest: { version: 1, questions: [{ question: "Which article?", custom: false, options: [{ label: "Machines of Loving Grace" }, { label: "Reasoning models" }] }] },
+    }));
+    expect(markup).toContain("Machines of Loving Grace");
+    expect(markup).not.toContain(">Other<");
+  });
+
   it("folds an answered card into one line, with the full answer behind Details", () => {
     const markup = render(message({
       answered: "answer",
