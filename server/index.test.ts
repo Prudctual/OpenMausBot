@@ -2785,6 +2785,45 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("keeps one suggested specialist open per conversation and remembers Not now", async () => {
+    const chief = (await api("POST", "/api/bots")).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${chief.id}`, { chiefOfStaff: true })).status).toBe(200);
+      const before = (await api("GET", "/api/bots?messages=0")).body.bots.length;
+      const token = await mintTestCapability(BASE, chief.id, chief.threadId);
+      const suggest = async (name: string) => {
+        const response = await fetch(`${BASE}/api/internal/create-bot`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+          body: JSON.stringify({ name, role: "Checker", instructions: "Check the totals.", suggestion: true }),
+        });
+        return { status: response.status, body: await response.json() as { state?: string; requestId?: string; title?: string; error?: string } };
+      };
+      const first = await suggest(`Suggested ${chief.id}`);
+      expect(first).toMatchObject({ status: 201, body: { state: "pending", title: `Add @Suggested ${chief.id} to the team?` } });
+      const card = (await api("GET", `/api/threads/${chief.threadId}/messages?limit=20`)).body.messages.find((m: { card?: { requestId?: string } }) => m.card?.requestId === first.body.requestId).card;
+      expect(card.options).toEqual(["Add bot", "Not now"]);
+      expect(await suggest(`Second ${chief.id}`)).toMatchObject({ status: 409, body: { error: expect.stringMatching(/already waiting/) } });
+      const notNow = await fetch(`${BASE}/api/threads/${chief.threadId}/respond`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: BASE },
+        body: JSON.stringify({ requestId: first.body.requestId, behavior: "deny" }),
+      });
+      expect((await notNow.json() as { result: { state: string } }).result.state).toBe("denied");
+      const fresh = await mintTestCapability(BASE, chief.id, chief.threadId);
+      const again = await fetch(`${BASE}/api/internal/create-bot`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${fresh}`, "content-type": "application/json" },
+        body: JSON.stringify({ name: `Third ${chief.id}`, role: "Checker", instructions: "Check the totals.", suggestion: true }),
+      });
+      expect(again.status).toBe(409);
+      expect((await again.json() as { error: string }).error).toMatch(/not now/);
+      expect((await api("GET", "/api/bots?messages=0")).body.bots.length).toBe(before);
+    } finally {
+      await api("DELETE", `/api/bots/${chief.id}`);
+    }
+  });
+
   it("rejects null and array task, channel, and bot mutation bodies", async () => {
     const bot = (await api("POST", "/api/bots")).body.bot;
     const room = (await api("POST", "/api/groups", { name: "Object bodies", memberIds: [bot.id] })).body.group;
