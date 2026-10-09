@@ -160,12 +160,13 @@ export function SidebarNewChatPanel({
         // A phone or narrow window gets a full-height sheet; beside the
         // sidebar only the To: row and the card are drawn, and the chat shows
         // through around them.
-        !place.floating && "bottom-0 border-e border-hairline/40 bg-card shadow-2xl shadow-black/40",
+        !place.floating && "bottom-0 border-e border-hairline/40 bg-app shadow-2xl shadow-black/40",
       )}
     >
       <div className={cn(
         "flex h-12 shrink-0 items-center gap-2 px-4",
-        place.floating && "rounded-b-2xl border-x border-b border-hairline/40 bg-card",
+        // the window's own background, so only the list card reads as raised
+        place.floating && "rounded-b-2xl bg-app",
       )}>
         <label htmlFor="new-chat-to" className="shrink-0 text-[14px] text-ink-secondary">{t("sidebar.newChat.to")}</label>
         <input
