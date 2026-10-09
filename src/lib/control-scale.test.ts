@@ -12,7 +12,8 @@ import { DigestChip } from "@/components/DigestChip";
 import type { Message } from "@/state/store";
 
 const src = join(dirname(fileURLToPath(import.meta.url)), "..");
-const css = readFileSync(join(src, "styles.css"), "utf8");
+// windows checkouts can carry crlf line endings
+const css = readFileSync(join(src, "styles.css"), "utf8").replace(/\r\n/g, "\n");
 
 function rule(selector: string): Record<string, string> {
   const start = css.indexOf(`  ${selector} {`);
