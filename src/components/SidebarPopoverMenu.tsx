@@ -153,7 +153,7 @@ function MenuRows({
             className={cn(
               "flex w-full items-center text-start disabled:opacity-60 focus-visible:outline-none",
               roomy
-                ? "min-h-10 gap-3 rounded-lg px-3 py-2 text-[15px] leading-5 focus-visible:bg-raised/70"
+                ? "min-h-10 gap-3 rounded-lg px-3 py-2 text-[15px] font-medium leading-5 focus-visible:bg-raised/70"
                 : "gap-3 px-3.5 py-2 text-[14px] focus-visible:bg-raised/70",
               item.active || (item.submenu && openSubmenu === item.key) ? "bg-raised text-ink" : "text-ink hover:bg-raised/70",
             )}
@@ -171,13 +171,13 @@ function MenuRows({
             {item.subtitle || item.note ? (
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate">{item.label}</span>
-                {item.subtitle && <span className="truncate text-[12px] text-ink-secondary">{item.subtitle}</span>}
-                {item.note && <span className="text-[11.5px] leading-snug text-ink-tertiary">{item.note}</span>}
+                {item.subtitle && <span className="truncate text-[12px] font-normal leading-4 text-ink-secondary">{item.subtitle}</span>}
+                {item.note && <span className="text-[11.5px] font-normal leading-snug text-ink-tertiary">{item.note}</span>}
               </span>
             ) : (
               <span className="flex-1 truncate">{item.label}</span>
             )}
-            {item.value && <span className="shrink-0 text-[14px] tabular-nums text-ink-secondary">{item.value}</span>}
+            {item.value && <span className="shrink-0 text-[14px] font-normal leading-5 tabular-nums text-ink-secondary">{item.value}</span>}
             {item.trailing}
             {item.attention && (
               <span

@@ -423,7 +423,7 @@ export function SidebarProfileMenu({ iconOnly = false }: { iconOnly?: boolean } 
             )}
           >
             <InitialsAvatar initials={profileInitials(profile)} size={28} />
-            <span className="min-w-0 flex-1 truncate text-[14px] text-ink">{name}</span>
+            <span className="min-w-0 flex-1 truncate text-[14px] font-medium leading-5 text-ink">{name}</span>
             {/* an update is the one thing worth interrupting the name for, so
               * it sits on the row rather than waiting to be found in the menu */}
             {noteworthy && (
