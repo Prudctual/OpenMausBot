@@ -5507,6 +5507,7 @@ store.onChange((change) => {
       break;
     case "thread.deleted":
       directRequestOwners.delete(change.threadId);
+      stoppedTurns.delete(change.threadId);
       routines?.forgetRoutineRequestReceiptsForThread(change.threadId);
       // A deleted destination must not strand an approval in an internal
       // task. Keep each run's snapshot and expose its execution as fallback.
@@ -6083,6 +6084,11 @@ function requestBehavior(value: unknown): "allow" | "deny" | "answer" | null {
 // the last settled assistant text per thread, so a "finished" notification
 // can carry what the bot actually said
 const lastReply = new Map<string, string>();
+/** Threads whose running turn a client abort ended (the abort sentence as
+ * assistant text or as runtime.error), with that turn's id when known.
+ * turn.completed reads it as a stop, not a failure, whatever stopReason the
+ * provider settles with. */
+const stoppedTurns = new Map<string, string | undefined>();
 /** the model each thread's provider session announced in session.started,
  * so a fallback notice can name the model Auto is unavailable for */
 const sessionModelByThread = new Map<string, string>();
@@ -7631,10 +7637,13 @@ bus.subscribe((event: RuntimeEvent) => {
   };
 
   // A client abort sometimes arrives as assistant text or as runtime.error.
-  // That is a stop, not a failure: store one stopped row and leave lastReply
-  // alone, so a finished notification does not read the provider's sentence.
+  // That is a stop, not a failure: store one stopped row, drop any text the
+  // turn said before it, so neither the digest nor a finished notification
+  // reads a half reply, and mark the turn stopped for turn.completed.
   // One turn can emit both; the second copy is the same stop.
   const pushStoppedTurn = (turnId: string | undefined) => {
+    lastReply.delete(event.threadId);
+    stoppedTurns.set(event.threadId, turnId ?? liveTurnByThread.get(event.threadId));
     const last = store.messagesFor(event.threadId).at(-1);
     if (last?.kind === "activity" && last.tool?.name === STOPPED_TURN_NAME && last.turnId === turnId) return;
     pushMessage({ role: "bot", kind: "activity", tool: { name: STOPPED_TURN_NAME, ok: true }, turnId });
@@ -7660,6 +7669,8 @@ bus.subscribe((event: RuntimeEvent) => {
   switch (event.type) {
     case "turn.started":
       turnStartedAt.set(event.threadId, Date.now());
+      // A stop that never saw its turn.completed must not pass for this turn.
+      stoppedTurns.delete(event.threadId);
       break;
     case "session.started":
       if (bot && event.sessionId && event.providerInstanceId) {
@@ -8057,6 +8068,11 @@ bus.subscribe((event: RuntimeEvent) => {
       }
       const reply = lastReply.get(event.threadId) ?? "";
       lastReply.delete(event.threadId);
+      const stoppedTurnId = stoppedTurns.get(event.threadId);
+      const clientStopped = stoppedTurns.has(event.threadId)
+        && (stoppedTurnId === undefined || completedTurnId === undefined || stoppedTurnId === completedTurnId);
+      stoppedTurns.delete(event.threadId);
+      const stopped = event.stopReason === "interrupted" || clientStopped;
       // A run that broke — not one the person stopped, and not a routine's,
       // which reports through its own failure path — is the Chief's to see.
       // A lazy computer-claim rejection already reported its failure and
@@ -8069,7 +8085,7 @@ bus.subscribe((event: RuntimeEvent) => {
         turnResourceOwners.get(event.threadId)?.lazyClaimFailureReported === true;
       const computerParked = event.stopReason === "exit_before_result" &&
         turnResourceOwners.get(event.threadId)?.computerParkedOn !== undefined;
-      if (!event.ok && event.stopReason !== "interrupted" && !lazyClaimAlreadyReported && !computerParked && !routines?.runForThread(event.threadId)) {
+      if (!event.ok && !stopped && !lazyClaimAlreadyReported && !computerParked && !routines?.runForThread(event.threadId)) {
         const broken = bot ?? (speaker ? store.bot(speaker.botId) : undefined);
         if (broken) reportIncident({ kind: "failed", bot: broken, threadId: event.threadId, detail: event.stopReason?.trim() || "the run ended without a result" });
       }

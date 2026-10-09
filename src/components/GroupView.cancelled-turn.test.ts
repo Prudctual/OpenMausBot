@@ -69,6 +69,32 @@ describe("a cancelled turn in a room", () => {
     });
   });
 
+  it("retries the request the stopped turn answered, files included, not an earlier text line", () => {
+    const withFile: Message = {
+      id: "with-file", role: "user", kind: "text", at: 3, replyToId: "ask",
+      text: 'Read this\n\n<attached-file path="/tmp/brief.txt" name="brief.txt" />',
+      attachments: [{ kind: "image", path: "/tmp/shot.png", mime: "image/png" }],
+      channelMode: "goal",
+    };
+    render([ask, { ...cancel, id: "first-answer", text: "Sure." }, withFile, { ...cancel, id: "cancel-2", at: 4 }]);
+    flushSync(() => retry()!.click());
+    expect(fixture.dispatch).toHaveBeenCalledWith({
+      type: "sendGroup",
+      groupId: "room",
+      text: 'Read this\n\n<attached-file path="/tmp/brief.txt" name="brief.txt" />\n\n<attached-image path="/tmp/shot.png" name="shot.png" />',
+      threadId: "room-thread",
+      mode: "goal",
+      replyToId: "ask",
+    });
+  });
+
+  it("offers no Retry when a bot's line started the stopped turn", () => {
+    const peer: Message = { id: "peer", role: "user", kind: "text", at: 3, text: "Check the logs", peerAsk: { botId: "lead", name: "Lead" } };
+    render([ask, peer, { ...cancel, id: "cancel-2", at: 4 }]);
+    expect(host.textContent).toContain("Stopped");
+    expect(retry()).toBeUndefined();
+  });
+
   it("hides Retry while the room is busy and after a newer message", () => {
     render([ask, cancel], { ...room, busyBotId: "lead" });
     expect(host.textContent).toContain("Stopped");
