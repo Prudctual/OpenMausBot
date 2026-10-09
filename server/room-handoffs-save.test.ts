@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -62,11 +62,77 @@ describe("room handoff saves", () => {
     vi.mocked(spied.fsyncSync).mockClear();
     handoffs.sourceSettled("turn", true);
     handoffs.tick();
-    // sourceSettled is its own accept-style write. Starting the three children
-    // is one write, not three.
-    expect(spied.fsyncSync).toHaveBeenCalledTimes(2);
+    // sourceSettled is its own accept-style write. Each start is written
+    // before its child runs, and the tick's other changes ride along.
+    expect(spied.fsyncSync).toHaveBeenCalledTimes(4);
     await flush();
-    expect(spied.fsyncSync).toHaveBeenCalledTimes(3);
+    expect(spied.fsyncSync).toHaveBeenCalledTimes(5);
     expect([...handoffs.nodes.values()].filter(node => node.parentId).every(node => node.status === "completed")).toBe(true);
+  });
+
+  // The failure windows around the coalesced writes: what the file says when
+  // a child starts, after a restart, and after a settlement write fails.
+  function failing() {
+    const dir = mkdtempSync(join(tmpdir(), "room-handoff-window-"));
+    dirs.push(dir);
+    const file = join(dir, "requests.json");
+    const statusOnDisk = (id: string) => (JSON.parse(readFileSync(file, "utf8")) as Array<{ id: string; status: string; result: string }>).find(node => node.id === id);
+    const seenAtStart: string[] = [];
+    let settle: ((value: { ok: boolean; text: string }) => void) | undefined;
+    const run = vi.fn((node: { id: string }) => {
+      seenAtStart.push(statusOnDisk(node.id)!.status);
+      return new Promise<{ ok: boolean; text: string }>(resolve => { settle = resolve; });
+    });
+    const hooks: RoomHandoffHooks = { validate: () => undefined, busy: () => false, run, report: vi.fn(), changed: () => {} };
+    const handoffs = new RoomHandoffs(file, hooks);
+    const source = { botId: "chief", threadId: "chief" };
+    const { node } = handoffs.enqueue(source, "turn", undefined, { botId: "a", threadId: "a" }, "a", "A");
+    handoffs.sourceSettled("turn", true);
+    return { file, handoffs, node, run, seenAtStart, statusOnDisk, settle: (value: { ok: boolean; text: string }) => settle!(value) };
+  }
+  const failNextWrite = () => vi.mocked(spied.fsyncSync).mockImplementationOnce(() => { throw new Error("disk full"); });
+
+  it("writes running before a child starts, and starts nothing when that write fails", () => {
+    const { handoffs, node, run, seenAtStart, statusOnDisk } = failing();
+    failNextWrite();
+    expect(() => handoffs.tick()).toThrow("disk full");
+    expect(run).not.toHaveBeenCalled();
+    expect(handoffs.nodes.get(node.id)?.status).toBe("queued");
+    expect(statusOnDisk(node.id)?.status).toBe("queued");
+
+    handoffs.tick();
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(seenAtStart).toEqual(["running"]);
+    expect(statusOnDisk(node.id)?.status).toBe("running");
+  });
+
+  it("fails children that were running at a restart and never runs them again", () => {
+    const { file, handoffs, node, run } = failing();
+    handoffs.tick();
+    expect(run).toHaveBeenCalledTimes(1);
+
+    const rerun = vi.fn(async () => ({ ok: true, text: "again" }));
+    const restarted = new RoomHandoffs(file, { validate: () => undefined, busy: () => false, run: rerun, report: vi.fn(), changed: () => {} });
+    expect(restarted.nodes.get(node.id)).toMatchObject({ status: "failed", result: expect.stringContaining("server restart") });
+    restarted.tick();
+    expect(rerun).not.toHaveBeenCalled();
+  });
+
+  it("keeps a settlement whose write failed and saves it on the next tick", async () => {
+    const { handoffs, node, settle, statusOnDisk } = failing();
+    handoffs.tick();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      failNextWrite();
+      settle({ ok: true, text: "done" });
+      await flush();
+      expect(handoffs.nodes.get(node.id)?.status).toBe("completed");
+      expect(statusOnDisk(node.id)?.status).toBe("running");
+      expect(errors).toHaveBeenCalledWith("room handoffs:", expect.objectContaining({ message: "disk full" }));
+    } finally {
+      errors.mockRestore();
+    }
+    handoffs.tick();
+    expect(statusOnDisk(node.id)?.status).toBe("completed");
   });
 });

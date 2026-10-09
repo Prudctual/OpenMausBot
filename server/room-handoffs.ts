@@ -133,6 +133,14 @@ export class RoomHandoffs {
       this.emit(groups, threads);
     });
   }
+  /** Write what the open tick changed so far, now. Change notices still go
+   * out once, at the end of the tick. */
+  private saveBatch() {
+    if (!this.batch || (!this.batch.dirty && !this.settleDirty)) return;
+    this.save();
+    this.batch.dirty = false;
+    this.settleDirty = false;
+  }
   private flushBatch() {
     const batch = this.batch;
     this.batch = null;
@@ -493,6 +501,8 @@ export class RoomHandoffs {
       if (root.executions + executionCost > this.limits.executions) { this.cancelTree(n, "Room execution budget exhausted", "failed"); continue; }
       const resumed = n.status === "resume";
       const childCount = this.children(n.id).length;
+      const before = { status: n.status, startedAt: n.startedAt, lastProgressAt: root.lastProgressAt,
+        pause: this.pauses.get(root.id), since: this.pauses.get(root.id)?.since };
       root.executions += executionCost; n.status = "running"; n.startedAt = this.now();
       this.stampProgress(root);
       // Open the pause at the moment execution starts, not at the next tick:
@@ -501,6 +511,20 @@ export class RoomHandoffs {
       pause.since ??= this.now();
       this.pauses.set(root.id, pause);
       this.publish(n, root);
+      // The file must say running before the child starts. Everything this
+      // tick changed so far shares this one write. If it fails, the node is
+      // put back as it was and nothing starts; the next tick tries again.
+      try {
+        this.saveBatch();
+      } catch (error) {
+        root.executions -= executionCost;
+        n.status = before.status;
+        if (before.startedAt === undefined) delete n.startedAt; else n.startedAt = before.startedAt;
+        if (before.lastProgressAt === undefined) delete root.lastProgressAt; else root.lastProgressAt = before.lastProgressAt;
+        if (!before.pause) this.pauses.delete(root.id);
+        else before.pause.since = before.since;
+        throw error;
+      }
       const controller = new AbortController();
       this.controllers.set(n.id, controller);
       void this.hooks.run(n, resumed, controller.signal).then(result => {
