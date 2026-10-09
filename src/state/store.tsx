@@ -14,6 +14,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import type { BotVisibility, CardAnswerer, CloudBackend, ConnectorToolGrant, EffortLevel, InstalledPackageMetadata, LiveCallState, LiveSettings, ServerFrame, GroupThreadUsage, SteerQueueReason } from "../../shared/wire";
+import { DATA_ROUTES, type DataCard, type DataRunRequest, type DataSheet } from "../../shared/data-surface";
 import type { TurnDigest } from "../../shared/digest";
 import type { ToolScope } from "../../shared/tool-scope";
 import type { ModelVariantOption, RuntimeEvent } from "../../shared/runtime-events";
@@ -37,6 +38,7 @@ import {
 import type { Routine, RoutineInput, RoutineRun, RoutineRunStatusFilter } from "@/lib/routines";
 import type { WebhookAttempt, WebhookIngressStatus, WebhookTrigger } from "@/lib/webhooks";
 import { botShowsUnread } from "@/lib/bot-unread";
+import { firstUnreadMessageId, threadOpensUnread, threadReadCursor } from "@/lib/unread-divider";
 import type { ComputerStart } from "@/lib/computer-start";
 import { answerResponse, dismissResponse } from "@/lib/card-answer";
 import { currentCall } from "@/lib/call";
@@ -250,6 +252,9 @@ export interface Group {
   defaultResponder: GroupDefaultResponder;
   bulletin: string;
   unread: boolean;
+  /** The newest message on screen the last time the person read this
+   * conversation. The New divider goes after it. */
+  lastReadMessageId?: string;
   createdAt: number;
   /** auto-created bot⇄bot channel (ask_bot exchanges mirror here) */
   dm?: boolean;
@@ -342,6 +347,9 @@ export interface Task {
    * readout anchors here so it survives thread switches. Absent while idle. */
   turnStartedAt?: number;
   unread?: boolean;
+  /** The newest message on screen the last time the person read this
+   * conversation. The New divider goes after it. */
+  lastReadMessageId?: string;
   pinnedMessageId?: string;
   /** where this conversation works, when pinned: by the person from the
    * composer, or by its first Auto turn to the place it reached. Wins over
@@ -613,6 +621,15 @@ function rewindThreadUpdatedAt(state: AppState, threadId: string, messages: { at
   };
 }
 
+/** The New divider for a conversation being opened. One that opens unread
+ * gets a fresh one; opening the same conversation again keeps its divider,
+ * and any other conversation has none. */
+function openedUnreadDivider(state: AppState, threadId: string, unread: boolean, messages: readonly Message[], lastReadMessageId?: string): AppState["unreadDivider"] {
+  if (!unread) return state.unreadDivider?.threadId === threadId ? state.unreadDivider : null;
+  const messageId = firstUnreadMessageId(messages, lastReadMessageId);
+  return messageId ? { threadId, messageId } : null;
+}
+
 /** The visible conversation: walk parentId links from the active leaf back
  * to the root. Falls back to the flat list for pre-branching payloads. */
 export function visibleMessages(bot: Pick<Bot, "messages" | "activeLeafId">): Message[] {
@@ -827,6 +844,9 @@ export interface InstanceInfo {
   icon?: import("../../shared/provider-icon").ProviderIcon;
   /** Company instances are owned by the desktop parent, never editable here. */
   readOnly?: boolean;
+  /** An OpenMausBot Cloud home's trial Claude credit (read-only): whether it
+   * can still run, or is used up or gone. The person's own engine always wins over it. */
+  trialCredit?: "active" | "used_up" | "ended";
   managed?: { organizationId: string; organizationName: string };
   /** The enrolled organisation's desktop policy does not allow bots to run on
    * this instance: shown, but disabled, with the server's reason. */
@@ -990,6 +1010,11 @@ export interface AppState {
    * focuses the button that shows the code. Any other toggleAppSettings sets 0. */
   appSettingsPhonePairing: number;
   shortcutsOpen: boolean;
+  /** The Add a Cloud dialog (components/CloudAddDialog.tsx), and how it was
+   * reached (lib/cloud-plan CLOUD_SOURCES, the Admin's counts); null when closed. */
+  cloudAdd: { source: import("@/lib/cloud-plan").CloudSource } | null;
+  /** The one-step Show me how tip on the server menu (components/CloudHowTo.tsx). */
+  cloudHowTo: boolean;
   /** the first-run welcome tour, also replayable from Settings → General */
   welcomeOpen: boolean;
   /** the guided tour on the live interface that follows the welcome flow */
@@ -1006,9 +1031,17 @@ export interface AppState {
    * (the bot's hands are refused server-side); helpReason = the bot's open
    * plea for the person to take over */
   computerControl: Record<string, { held: boolean; helpReason: string | null }>;
+  /** Each bot's data sheet (cards and loaded tables, never rows), loaded
+   * when its Data tab first opens and replaced whole by every `data` frame.
+   * The grid pages rows itself, so a sheet stays small. */
+  dataSheets: Record<string, DataSheet>;
   /** a search hit to scroll to once its thread is on screen; nonce lets the
    * same message be focused twice in a row */
   focusMessage: { threadId: string; messageId: string; matchText?: string; nonce: number; consumed: boolean } | null;
+  /** The New divider: the first message of the open conversation that came
+   * in while the person was away. Taken from its unread flag when it opens,
+   * so it holds still while that conversation stays open. */
+  unreadDivider: { threadId: string; messageId: string } | null;
   connected: boolean;
   error: string | null;
   /** a quiet, non-error line above the transcript; clears itself */
@@ -1257,6 +1290,14 @@ export type Action =
   | { type: "optimisticMessageRemoved"; threadId: string; sendId: string; restoreLeafId?: string | null }
   | { type: "computerStart"; botId: string; start: ComputerStart | null }
   | { type: "computerControl"; botId: string; held: boolean; helpReason: string | null }
+  /** A whole sheet from the server: a `data` frame or the first GET. */
+  | { type: "dataSheet"; sheet: DataSheet }
+  | { type: "loadDataSheet"; botId: string; onError?: (message: string) => void }
+  /** The person's SQL, as a new card or (with `cardId`) over an existing one. */
+  | { type: "runDataSql"; botId: string; request: DataRunRequest; onError?: (message: string) => void }
+  | { type: "cancelDataCard"; botId: string; cardId: string; onError?: (message: string) => void }
+  | { type: "patchDataCard"; botId: string; cardId: string; patch: Partial<Pick<DataCard, "title" | "pinned">>; onError?: (message: string) => void }
+  | { type: "deleteDataCard"; botId: string; cardId: string; onError?: (message: string) => void }
   | { type: "modelVariantRuntime"; event: RuntimeEvent }
   | { type: "setModel"; botId: string; selection: ModelSelection; threadId?: string; updateBotDefault?: boolean; resetApprovalToAsk?: boolean }
   | { type: "interrupt"; botId: string; threadId?: string; onError?: () => void }
@@ -1273,8 +1314,12 @@ export type Action =
   | { type: "toggleActivity"; open?: boolean }
   | { type: "focusMessage"; threadId: string; messageId: string; matchText?: string }
   | { type: "focusMessageConsumed"; nonce: number }
+  | { type: "unreadDividerDone"; threadId: string }
   | { type: "toggleAppSettings"; open?: boolean; section?: AppSettingsSection; cloudLink?: boolean; phonePairing?: boolean }
   | { type: "toggleShortcuts"; open?: boolean }
+  | { type: "openCloudAdd"; source: import("@/lib/cloud-plan").CloudSource }
+  | { type: "closeCloudAdd" }
+  | { type: "cloudHowTo"; open: boolean }
   | { type: "toggleWelcome"; open?: boolean }
   | { type: "toggleTour"; open?: boolean }
   | {
@@ -1681,19 +1726,25 @@ export function reducer(state: AppState, action: Action): AppState {
         config: { ...state.config, profile: { name: "", email: "", ...state.config.profile, ...action.profile } },
       } : state;
     case "select": {
-      if (state.groups.some((g) => g.id === action.id)) {
+      const room = state.groups.find((g) => g.id === action.id);
+      if (room) {
         return {
           ...state,
+          unreadDivider: openedUnreadDivider(state, room.threadId, room.unread, room.messages, room.lastReadMessageId),
           activeView: "chat",
           selectedId: action.id,
           botSettingsSection: action.id !== state.selectedId ? "overview" : state.botSettingsSection,
           groups: state.groups.map((g) => (g.id === action.id ? { ...g, unread: false } : g)),
         };
       }
+      const opened = state.bots.find((b) => b.id === action.id);
       return updateBot(
         withMascotMotion(
           {
             ...state,
+            unreadDivider: opened
+              ? openedUnreadDivider(state, opened.threadId, threadOpensUnread(opened), visibleMessages(opened), threadReadCursor(opened))
+              : state.unreadDivider,
             activeView: "chat",
             selectedId: action.id,
             botSettingsSection: action.id !== state.selectedId ? "overview" : state.botSettingsSection,
@@ -2100,6 +2151,8 @@ export function reducer(state: AppState, action: Action): AppState {
     case "focusMessageConsumed":
       if (!state.focusMessage || state.focusMessage.nonce !== action.nonce) return state;
       return { ...state, focusMessage: { ...state.focusMessage, consumed: true } };
+    case "unreadDividerDone":
+      return state.unreadDivider?.threadId === action.threadId ? { ...state, unreadDivider: null } : state;
     case "toggleComputer": {
       const open = action.open ?? !state.computerOpen;
       return {
@@ -2156,6 +2209,13 @@ export function reducer(state: AppState, action: Action): AppState {
         shortcutsOpen: open,
       };
     }
+    // The dialog takes over from the tip; one already open keeps how it was first reached.
+    case "openCloudAdd":
+      return { ...state, cloudAdd: state.cloudAdd ?? { source: action.source }, cloudHowTo: false };
+    case "closeCloudAdd":
+      return state.cloudAdd ? { ...state, cloudAdd: null } : state;
+    case "cloudHowTo":
+      return state.cloudHowTo === action.open ? state : { ...state, cloudHowTo: action.open };
     case "toggleTour": {
       const open = action.open ?? !state.tourOpen;
       return { ...state, tourOpen: open, appSettingsOpen: open ? false : state.appSettingsOpen };
@@ -2421,6 +2481,12 @@ export function reducer(state: AppState, action: Action): AppState {
       for (const frame of state.backgroundThreadEvents[action.bot.threadId] ?? []) switched = reducer(switched, frame);
       const { [action.bot.threadId]: _settled, ...backgroundThreadEvents } = switched.backgroundThreadEvents;
       switched = { ...switched, backgroundThreadEvents };
+      // Only the conversation on screen draws a divider; a bot in the
+      // background moving to another thread leaves it alone.
+      const opened = switched.bots.find((bot) => bot.id === action.bot.id);
+      if (opened && opened.id === switched.selectedId) {
+        switched = { ...switched, unreadDivider: openedUnreadDivider(switched, opened.threadId, threadOpensUnread(opened), visibleMessages(opened), threadReadCursor(opened)) };
+      }
       return reconcileModelVariantSessions(reconcileSnapshotQueues(switched, [action.bot]));
     }
     case "newBot":
@@ -2443,7 +2509,14 @@ export function reducer(state: AppState, action: Action): AppState {
     case "markAllRoutineRunsSeen":
     case "refreshTaskPermissions":
     case "followBotModel":
+    case "loadDataSheet":
+    case "runDataSql":
+    case "cancelDataCard":
+    case "patchDataCard":
+    case "deleteDataCard":
       return state;
+    case "dataSheet":
+      return { ...state, dataSheets: { ...state.dataSheets, [action.sheet.botId]: action.sheet } };
     case "sendGroup": {
       if (!action.sendId) return state;
       const group = state.groups.find((candidate) => candidate.id === action.groupId);
@@ -2465,6 +2538,17 @@ export function reducer(state: AppState, action: Action): AppState {
       }, threadId, message.at);
     }
   }
+}
+
+/** GET sheet answers with the sheet itself or wrapped as `{ sheet }`; an
+ * empty answer (a bot that has never used data) is an empty sheet. */
+export function dataSheetFromResponse(body: unknown, botId: string): DataSheet {
+  const candidate = body && typeof body === "object" && "sheet" in body ? (body as { sheet: unknown }).sheet : body;
+  if (candidate && typeof candidate === "object" && Array.isArray((candidate as DataSheet).cards)) {
+    const sheet = candidate as DataSheet;
+    return { ...sheet, botId: sheet.botId || botId, sources: Array.isArray(sheet.sources) ? sheet.sources : [] };
+  }
+  return { version: 1, botId, cards: [], sources: [], updatedAt: new Date(0).toISOString() };
 }
 
 export const initialState: AppState = {
@@ -2503,6 +2587,8 @@ export const initialState: AppState = {
   appSettingsCloudLink: 0,
   appSettingsPhonePairing: 0,
   shortcutsOpen: false,
+  cloudAdd: null,
+  cloudHowTo: false,
   welcomeOpen: false,
   tourOpen: false,
   botSettingsSection: "overview",
@@ -2510,7 +2596,9 @@ export const initialState: AppState = {
   computerStarts: {},
   deletingBots: {},
   computerControl: {},
+  dataSheets: {},
   focusMessage: null,
+  unreadDivider: null,
   connected: false,
   error: null,
   notice: null,
@@ -3098,6 +3186,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           break;
         case "cancelRoutineRun":
           api(`/api/routine-runs/${action.runId}/cancel`, { method: "POST" }).catch(showError);
+          break;
+        // The Data tab. Run, cancel, patch and delete answer through the
+        // server's `data` frame (the whole sheet), not through their replies,
+        // so every window sees the same cards. A panel-local onError keeps a
+        // server without the surface from raising the app-wide error line.
+        case "loadDataSheet":
+          api(DATA_ROUTES.sheet(action.botId))
+            .then((body) => rawDispatch({ type: "dataSheet", sheet: dataSheetFromResponse(body, action.botId) }))
+            .catch((error) => (action.onError ?? showError)(error instanceof Error ? error.message : String(error)));
+          break;
+        case "runDataSql":
+          api(DATA_ROUTES.run(action.botId), { method: "POST", body: JSON.stringify(action.request) })
+            .catch((error) => (action.onError ?? showError)(error instanceof Error ? error.message : String(error)));
+          break;
+        case "cancelDataCard":
+          api(DATA_ROUTES.cancel(action.botId), { method: "POST", body: JSON.stringify({ cardId: action.cardId }) })
+            .catch((error) => (action.onError ?? showError)(error instanceof Error ? error.message : String(error)));
+          break;
+        case "patchDataCard":
+          api(DATA_ROUTES.card(action.botId, action.cardId), { method: "PATCH", body: JSON.stringify(action.patch) })
+            .catch((error) => (action.onError ?? showError)(error instanceof Error ? error.message : String(error)));
+          break;
+        case "deleteDataCard":
+          api(DATA_ROUTES.card(action.botId, action.cardId), { method: "DELETE" })
+            .catch((error) => (action.onError ?? showError)(error instanceof Error ? error.message : String(error)));
           break;
         case "markRoutineRunSeen":
           api(`/api/routine-runs/${action.runId}/seen`, { method: "POST" }).catch(showError);
@@ -3995,6 +4108,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             held: frame.held === true,
             helpReason: typeof frame.helpReason === "string" ? frame.helpReason : null,
           });
+          break;
+        case "data":
+          rawDispatch({ type: "dataSheet", sheet: frame.sheet });
           break;
         case "bot.deleted":
           botPatchQueue.cancel(frame.botId);
