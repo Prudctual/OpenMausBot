@@ -1732,7 +1732,7 @@
   "browser.control.waiting": "Waiting for {name} to finish…",
   "browser.control.stale": "{name} was busy, so that wasn’t sent. Try again.",
   "browser.live.botBusy": "{name} is using this browser. The live view opens when it’s free…",
-  "browser.input.tooSlow": "Browser input stopped because the browser is not keeping up. The engine may be stuck, or the connection may be slow. Reconnect the view before typing again. If it stays stuck, press Restart in the Browser panel.",
+  "browser.input.tooSlow": "Browser input stopped because the browser is not keeping up with it (it may be stuck, or the connection may be slow). Reconnect the view before typing again. If it stays stuck, restart the browser.",
   "browser.profiles.heldElsewhere": "Another window is using this browser. Switch profiles once it’s done.",
   "browser.profiles.busy": "Profiles unlock once the current browser action finishes.",
   "browser.viewport.keysHint": "Once you click or type in the page, your keys go to it; until then Tab moves on. Press Shift+Escape to return to the browser address bar.",
