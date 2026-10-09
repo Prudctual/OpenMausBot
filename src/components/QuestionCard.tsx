@@ -124,8 +124,6 @@ export function QuestionCard({
   threadId,
   bot,
   message,
-  botId,
-  groupId,
 }: {
   /** answered by THREAD, so a question raised inside a room settles the
    * same way as one in a 1:1 chat */
@@ -133,10 +131,6 @@ export function QuestionCard({
   /** who is asking, for the "Name has a question" line */
   bot?: Pick<Bot, "name">;
   message: Message;
-  /** the asking bot, so the X can close the question. No X without it. */
-  botId?: string;
-  /** the room the question was raised in, when it was */
-  groupId?: string;
 }) {
   const { dispatch } = useStore();
   const card = message.card;
@@ -198,15 +192,6 @@ export function QuestionCard({
     });
   };
 
-  const dismiss = botId
-    ? () => {
-        if (settled) return;
-        setSent("");
-        returnFocusToComposer();
-        dispatch({ type: "dismissCard", botId, threadId, messageId: message.id, groupId });
-      }
-    : undefined;
-
   const submit = () => {
     if (complete) send(drafts);
   };
@@ -235,7 +220,7 @@ export function QuestionCard({
     const answer = card.answeredText ?? sent;
     // A question nobody answered (the run ended, or it was closed) is not
     // "answered": say so, and offer nothing to expand.
-    if (sent === "" || (!answer && card.answered && card.answered !== "answer")) {
+    if (!answer && card.answered && card.answered !== "answer") {
       return (
         <AskSettledLine ariaLabel={t("question.aria.card")} icon={<X size={13} />}>
           {t("question.status.closed")}
@@ -255,10 +240,14 @@ export function QuestionCard({
   const multi = Boolean(current.multiSelect);
   const freeText = current.custom !== false;
 
-  // A, B, C pick an option from anywhere on the card except a text field.
+  // A, B, C pick an option from the card itself or a choice row. Not from a
+  // text field, and not from another control (a tab), where a letter
+  // should do nothing.
   const onCardKey = (event: KeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
-    if (event.altKey || event.ctrlKey || event.metaKey || target.closest("input, textarea")) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (target.closest("input, textarea, select, [contenteditable]")) return;
+    if (target.closest("button, a") && !target.closest("[data-ask-choice]")) return;
     const index = choiceIndexForKey(event.key, current.options.length);
     if (index < 0) return;
     event.preventDefault();
@@ -272,8 +261,6 @@ export function QuestionCard({
       title={title}
       meta={meta}
       onKeyDown={onCardKey}
-      onDismiss={dismiss}
-      dismissLabel={t("question.close")}
       // a single pick answers in one tap, so there is nothing to submit
       // until they type an answer of their own
       footer={oneTap && !draft.custom.trim() ? undefined : (

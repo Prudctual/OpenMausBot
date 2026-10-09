@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-// Letter keys pick options, typing your own answer replaces a single pick,
-// and the X closes the question.
+// Letter keys pick options and typing your own answer replaces a single
+// pick.
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,13 +15,13 @@ let host: HTMLDivElement;
 let root: Root;
 const dispatch = vi.fn();
 
-function mount(questions: AskQuestion[], botId?: string) {
+function mount(questions: AskQuestion[]) {
   const message = {
     id: "m1", role: "bot", kind: "options", at: 1,
     card: { title: "Your bot has a question", subtitle: questions[0]!.question, options: [], requestId: "req-1", questionRequest: { version: 1, questions } },
   } as unknown as Message;
   const store = { state: {}, dispatch } as unknown as ReturnType<typeof useStore>;
-  act(() => root.render(createElement(BotEditorStore, { value: store, children: createElement(QuestionCard, { threadId: "t1", bot: { name: "Dev" }, message, botId }) })));
+  act(() => root.render(createElement(BotEditorStore, { value: store, children: createElement(QuestionCard, { threadId: "t1", bot: { name: "Dev" }, message }) })));
 }
 
 const radios = () => Array.from(host.querySelectorAll<HTMLElement>('[role="radio"], [role="checkbox"]'));
@@ -72,16 +72,16 @@ describe("QuestionCard keys", () => {
     expect(host.querySelectorAll("svg.text-accent-text").length).toBe(2);
   });
 
-  it("closes the question with the X when the asking bot is known", () => {
-    mount([plan], "bot-1");
-    const close = host.querySelector<HTMLButtonElement>('button[aria-label="Close question"]')!;
-    act(() => close.click());
-    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "dismissCard", botId: "bot-1", messageId: "m1", threadId: "t1" }));
-    expect(host.textContent).toContain("Closed without an answer");
+  it("ignores letters pressed on another control, such as a tab", () => {
+    mount([plan, { ...plan, question: "Which region?" }]);
+    const tab = host.querySelector('[role="tab"]')!;
+    press(tab, "b");
+    expect(checked()).toEqual(["false", "false", "false"]);
+    expect(host.textContent).toContain("0 of 2 answered");
   });
 
-  it("has no X without the asking bot", () => {
+  it("offers no X on a waiting question, since the server only takes an answer", () => {
     mount([plan]);
-    expect(host.querySelector('button[aria-label="Close question"]')).toBeNull();
+    expect(host.querySelector('button[aria-label]')).toBeNull();
   });
 });
