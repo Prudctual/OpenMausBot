@@ -5,10 +5,12 @@
 // a settled approval does, so a long chat does not keep a stack of boxes
 // for things that are already done.
 import type { KeyboardEvent, ReactNode } from "react";
+import { cn } from "@/lib/cn";
 import { Check, X } from "lucide-react";
 
 export function AskCard({
   icon,
+  plain = false,
   title,
   meta,
   explanation,
@@ -18,8 +20,12 @@ export function AskCard({
   tour,
   children,
   footer,
+  onKeyDown,
 }: {
-  icon: ReactNode;
+  icon?: ReactNode;
+  /** the title is the ask itself (a question), in plain ink that wraps,
+   * rather than an accent label */
+  plain?: boolean;
   title: ReactNode;
   /** small trailing text on the title line, such as "1 of 2 answered" */
   meta?: ReactNode;
@@ -31,6 +37,7 @@ export function AskCard({
   tour?: string;
   children?: ReactNode;
   footer?: ReactNode;
+  onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
 }) {
   return (
     <div
@@ -38,15 +45,23 @@ export function AskCard({
       aria-label={ariaLabel}
       data-tour={tour}
       data-ask-card="pending"
+      onKeyDown={onKeyDown}
       // the composer's own surface, so an ask reads as part of the
       // conversation's controls (the approval row uses the same)
       className="w-full max-w-[600px] rounded-3xl bg-composer px-4 py-3 text-start ring-1 ring-composer-ring"
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <span aria-hidden="true" className="flex shrink-0 text-accent-text">{icon}</span>
+      <div className={cn("flex min-w-0 gap-2", plain ? "items-start" : "items-center")}>
+        {icon && <span aria-hidden="true" className="flex shrink-0 text-accent-text">{icon}</span>}
         {/* the direction goes on the text, not the box: an English title
             in a right-to-left chat still sits beside its icon */}
-        <div className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-accent-text">
+        <div
+          className={cn(
+            "min-w-0 flex-1",
+            plain
+              ? "break-words text-[15px] font-semibold leading-6 text-ink"
+              : "truncate text-[13.5px] font-semibold text-accent-text",
+          )}
+        >
           <bdi dir="auto">{title}</bdi>
         </div>
         {meta && <span className="shrink-0 text-[11.5px] tabular-nums text-ink-tertiary">{meta}</span>}
@@ -56,14 +71,17 @@ export function AskCard({
             onClick={onDismiss}
             aria-label={dismissLabel}
             title={dismissLabel}
-            className="-my-1 -me-1.5 flex size-7 shrink-0 items-center justify-center rounded-full text-ink-tertiary hover:bg-ink/[0.07] hover:text-ink"
+            className={cn(
+              "-me-1.5 flex size-7 shrink-0 items-center justify-center rounded-full text-ink-tertiary hover:bg-ink/[0.07] hover:text-ink",
+              plain ? "-mt-0.5" : "-my-1",
+            )}
           >
-            <X size={14} />
+            <X size={plain ? 16 : 14} />
           </button>
         )}
       </div>
       {explanation && <div className="mt-1 text-[13px] leading-snug text-ink-secondary">{explanation}</div>}
-      {children && <div className="mt-2.5">{children}</div>}
+      {children && <div className={plain ? "mt-3" : "mt-2.5"}>{children}</div>}
       {footer && <div className="mt-3 flex flex-wrap items-center justify-end gap-2">{footer}</div>}
     </div>
   );

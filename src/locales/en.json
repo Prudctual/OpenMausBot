@@ -205,6 +205,7 @@
   "question.multiHint": "Choose all that apply",
   "question.other": "Other",
   "question.otherPlaceholder": "Type your own answer",
+  "question.close": "Close question",
   "question.submit": "Submit answer",
   "question.submitAll": "Submit answers",
   "question.status.answered": "Answered",
