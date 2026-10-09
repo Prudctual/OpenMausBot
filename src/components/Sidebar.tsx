@@ -88,6 +88,7 @@ import {
   CHANNELS_SECTION_ID,
   PINNED_SECTION_ID,
   PINNED_THREADS_SECTION_ID,
+  TOOLS_SECTION_ID,
   mergeSectionOrder,
   moveSection,
   orderedSidebarSections,
@@ -124,6 +125,7 @@ import { LiveCallPill, liveBadgeFor } from "./LiveCallPill";
 import { ShortcutHint } from "./ShortcutHint";
 import { citationPreviewText } from "@/lib/citations";
 import { plainPreviewText } from "@/lib/plain-preview";
+import { isClientCancellation } from "../../shared/client-cancel";
 import { usePopoverDismiss } from "@/hooks/use-popover-dismiss";
 import { useAdvancedMode } from "@/lib/interface-mode";
 
@@ -171,6 +173,7 @@ function preview(bot: Bot, visible: Message[], instances: InstanceInfo[]): strin
   // (`**[repo](https://…)**` reads as "repo")
   const peer = peerLine(last);
   if (peer) return `${peer.name}: ${plainPreviewText(peer.body)}`;
+  if (last.role !== "user" && isClientCancellation(last.text ?? "")) return t("chat.turnStopped");
   return plainPreviewText(citationPreviewText(last.text ?? ""));
 }
 
@@ -195,6 +198,10 @@ function groupPreview(group: Group, bots: Bot[], instances: InstanceInfo[]): str
   if (group.working) return t("sidebar.preview.teamWorking");
   const last = lastNonReceipt(group.messages);
   if (!last) return t("sidebar.preview.noMessages");
+  if (last.kind === "text" && last.role !== "user" && isClientCancellation(last.text ?? "")) {
+    const stopped = t("chat.turnStopped");
+    return last.from ? `${last.from.name}: ${stopped}` : stopped;
+  }
   const text = last.kind === "activity" && last.tool
     ? activityPreview(last.tool, botEngine(bots.find((bot) => bot.id === last.from?.botId), instances))
     : last.kind === "goal.run" && last.goalRun
@@ -2694,7 +2701,11 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
 
       {/* Footer */}
       <div className={cn("pb-3 pt-2", density === "icons" ? "px-2" : "px-3")}>
-        <SidebarFooterNav density={density} />
+        <SidebarFooterNav
+          density={density}
+          collapsed={sectionCollapsed(TOOLS_SECTION_ID)}
+          onToggleCollapsed={layoutInteractive ? () => toggleSection(TOOLS_SECTION_ID) : undefined}
+        />
         {density === "icons" && (
           <SidebarPhoneButton
             density={density}
