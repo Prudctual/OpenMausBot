@@ -46,9 +46,6 @@ const defaultAppend: EventLogAppend = (path, data, options) => appendFile(path, 
 
 type QueuedLog = { event: RuntimeEvent; bytes: number };
 
-/** Where the incomplete-log marker sits relative to events already accepted. */
-type WarningPlacement = "before" | "after";
-
 type TextDelta = Extract<RuntimeEvent, { type: "content.delta" }>;
 
 /** Two deltas are one stream when only their text, id and time differ. */
@@ -79,8 +76,8 @@ export class EventBus {
   private pumping = false;
   private kickScheduled = false;
   private readonly drainWaiters: Array<() => void> = [];
-  /** Set when a queue-full failure still has accepted lines ahead of the marker. */
-  private readonly warningPlacement = new Map<string, WarningPlacement>();
+  /** Coalesce consecutive drops, but put their marker in the ordinary FIFO. */
+  private readonly queuedLogWarnings = new Map<string, RuntimeEvent>();
 
   constructor(appendLog: EventLogAppend = defaultAppend) {
     this.appendLog = appendLog;
@@ -137,7 +134,7 @@ export class EventBus {
       timer = setTimeout(() => resolve(false), ms);
     });
     try {
-      return await Promise.race([this.flush().then(() => true as const), timeout]);
+      return await Promise.race([this.flush().then(() => this.pendingLogWarnings.size === 0), timeout]);
     } finally {
       clearTimeout(timer);
     }
@@ -166,29 +163,21 @@ export class EventBus {
     const bytes = Buffer.byteLength(JSON.stringify(redactSecrets(event)));
     const overCount = this.queued.length >= MAX_QUEUED_EVENTS;
     const overBytes = this.queued.length > 0 && this.queuedBytes + bytes > MAX_QUEUED_BYTES;
-    if ((overCount || overBytes) && isTerminalEvent(event)) {
-      // A turn's end is never dropped: the log and anything that replays it
-      // would otherwise show a turn that never finished. If this thread lost
-      // lines to the full queue, its marker goes in right before the end.
-      if (this.pendingLogWarnings.has(event.threadId) && this.warningPlacement.get(event.threadId) === "after") {
-        const warning = this.pendingLogWarnings.get(event.threadId)!;
-        this.pendingLogWarnings.delete(event.threadId);
-        this.warningPlacement.delete(event.threadId);
+    if ((overCount || overBytes) && !isTerminalEvent(event)) {
+      if (!this.queuedLogWarnings.has(event.threadId)) {
+        const warning = this.logWarning(event);
+        this.queuedLogWarnings.set(event.threadId, warning);
+        // Reserve the exact gap position, including behind an active batch.
+        // Queue before delivery because listeners may synchronously publish.
         this.push(warning);
+        console.error("bus: canonical event log queue is full");
+        this.deliver(warning);
       }
-      this.push(event);
       return;
     }
-    if (overCount || overBytes) {
-      // Accepted lines for this thread stay in front of the marker. A thread
-      // with nothing queued yet records the marker in front of whatever
-      // lands next, same as a failed append.
-      const placement: WarningPlacement = this.queued.some((item) => item.event.threadId === event.threadId)
-        ? "after"
-        : "before";
-      this.noteDiskFailure(event, new Error("canonical event log queue is full"), placement);
-      return;
-    }
+    // A turn's end is never dropped. Any accepted event ends a run of drops;
+    // a later overflow needs its own marker after this newly accepted line.
+    this.queuedLogWarnings.delete(event.threadId);
     this.push(event, bytes);
   }
 
@@ -251,43 +240,29 @@ export class EventBus {
 
   private async appendGroup(threadId: string, events: RuntimeEvent[]): Promise<void> {
     const warning = this.pendingLogWarnings.get(threadId);
-    const placement = this.warningPlacement.get(threadId) ?? "before";
-    const moreForThread = this.queued.some((item) => item.event.threadId === threadId);
     const redacted = events.map((event) => redactSecrets(event));
-    let wroteWarning = false;
     const persisted: unknown[] = redacted;
-    if (warning && placement === "before") {
-      persisted.unshift(warning);
-      wroteWarning = true;
-    } else if (warning && placement === "after" && !moreForThread) {
-      persisted.push(warning);
-      wroteWarning = true;
-    }
+    if (warning) persisted.unshift(warning);
     const file = join(EVENTS_DIR, `${threadId}.ndjson`);
     try {
       // the canonical log is a file people paste into bug reports; scrub
       // credential-shaped content (tool titles, request summaries, reply
       // text) the same way the native tee does
       await this.appendLog(file, persisted.map((entry) => JSON.stringify(entry)).join("\n") + "\n", { mode: 0o600 });
-      if (wroteWarning) {
-        this.pendingLogWarnings.delete(threadId);
-        this.warningPlacement.delete(threadId);
-      }
+      if (warning) this.pendingLogWarnings.delete(threadId);
       // Best-effort size cap (#1280): an open thread's canonical log
       // otherwise grows without bound for as long as the thread stays open.
       capThreadLog(file, currentThreadLogCap());
     } catch (error) {
-      if (placement === "after") this.warningPlacement.set(threadId, "before");
-      this.noteDiskFailure(events[0], error, "before");
+      this.noteDiskFailure(events[0], error);
+    } finally {
+      const queuedWarning = this.queuedLogWarnings.get(threadId);
+      if (queuedWarning && events.includes(queuedWarning)) this.queuedLogWarnings.delete(threadId);
     }
   }
 
-  /** Once per outage. Never goes back through publish(): that would retry
-   * the same failed write and recurse. The marker is written with the next
-   * batch that reaches disk. */
-  private noteDiskFailure(event: RuntimeEvent, error: unknown, placement: WarningPlacement) {
-    if (this.pendingLogWarnings.has(event.threadId)) return;
-    const warning: RuntimeEvent = {
+  private logWarning(event: RuntimeEvent): RuntimeEvent {
+    return {
       eventId: newId(),
       provider: event.provider,
       providerInstanceId: event.providerInstanceId,
@@ -297,8 +272,15 @@ export class EventBus {
       type: "runtime.error",
       message: INCOMPLETE_LOG_MESSAGE,
     };
+  }
+
+  /** Once per outage. Never goes back through publish(): that would retry
+   * the same failed write and recurse. The marker is written with the next
+   * batch that reaches disk. */
+  private noteDiskFailure(event: RuntimeEvent, error: unknown) {
+    if (this.pendingLogWarnings.has(event.threadId)) return;
+    const warning = this.logWarning(event);
     this.pendingLogWarnings.set(event.threadId, warning);
-    this.warningPlacement.set(event.threadId, placement);
     console.error("bus: canonical event log write failed", error);
     this.deliver(warning);
   }

@@ -280,6 +280,61 @@ describe("EventBus", () => {
     expect(writes.join("")).toContain('"eventId":"landed"');
   });
 
+  it("keeps the overflow marker before newly accepted events after the gap", async () => {
+    const writes: string[] = [];
+    let release!: () => void;
+    const bus = new EventBus((_path, data) => {
+      writes.push(data);
+      if (writes.length === 1) return new Promise<void>(resolve => { release = resolve; });
+    });
+    for (let i = 0; i < 260; i++) bus.publish(testEvent({ eventId: `e${i}` }));
+    await Promise.resolve(); // The active batch frees room for another event.
+    bus.publish(testEvent({ eventId: "after-gap" }));
+    release();
+    await bus.flush();
+    const lines = writes.flatMap(chunk => chunk.trim().split("\n").map(line => JSON.parse(line)));
+    expect(lines.slice(0, 256).map(event => event.eventId)).toEqual(Array.from({ length: 256 }, (_, i) => `e${i}`));
+    expect(lines[256].type).toBe("runtime.error");
+    expect(lines[257].eventId).toBe("after-gap");
+  });
+
+  it("does not put an overflow marker before accepted events already in the active batch", async () => {
+    const writes: string[] = [];
+    let release!: () => void;
+    const bus = new EventBus((_path, data) => {
+      writes.push(data);
+      if (writes.length === 1) return new Promise<void>(resolve => { release = resolve; });
+    });
+    bus.publish(testEvent({ threadId: "other", eventId: "blocking" }));
+    bus.publish(testEvent({ eventId: "before-gap" }));
+    await Promise.resolve();
+    for (let i = 0; i < 256; i++) bus.publish(testEvent({ threadId: "other", eventId: `e${i}` }));
+    bus.publish(testEvent({ eventId: "dropped" }));
+    bus.publish(testEvent({ eventId: "done", type: "turn.completed", ok: true }));
+    release();
+    await bus.flush();
+    const lines = writes.flatMap(chunk => chunk.trim().split("\n").map(line => JSON.parse(line)))
+      .filter(event => event.threadId === "thread-1");
+    expect(lines.map(event => event.type)).toEqual(["turn.started", "runtime.error", "turn.completed"]);
+    expect(lines[0].eventId).toBe("before-gap");
+  });
+
+  it("does not report a successful shutdown flush after an append fails", async () => {
+    let failing = true;
+    const writes: string[] = [];
+    const bus = new EventBus((_path, data) => {
+      if (failing) throw new Error("disk full");
+      writes.push(data);
+    });
+    bus.publish(testEvent());
+    await expect(bus.flushWithin(1_000)).resolves.toBe(false);
+    await expect(bus.flushWithin(1_000)).resolves.toBe(false);
+    failing = false;
+    bus.publish(testEvent({ eventId: "recovered" }));
+    await expect(bus.flushWithin(1_000)).resolves.toBe(true);
+    expect(writes.join("")).toContain("event history is incomplete");
+  });
+
   it("flushes queued lines when an instance detaches", async () => {
     const bus = new EventBus();
     bus.publish(testEvent({ threadId: "detach-me", eventId: "d1" }));

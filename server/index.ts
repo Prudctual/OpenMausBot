@@ -25796,7 +25796,7 @@ const gracefulShutdown = createGracefulShutdown({
     // cleanup flush, reach disk before exit. A stuck append cannot hold the
     // process: the cleanup deadline already elapsed, so this wait is short.
     void bus.flushWithin(1_000).then((done) => {
-      if (!done) console.error("bus: the canonical event log was still writing at exit; the newest thread history may be incomplete.");
+      if (!done) console.error("bus: the canonical event log did not finish writing at exit; the newest thread history may be incomplete.");
       finish(code);
     }, (error: unknown) => {
       console.error("bus: canonical event log flush failed; the newest thread history may be incomplete.", error);
