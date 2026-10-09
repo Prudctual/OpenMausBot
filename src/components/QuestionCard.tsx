@@ -36,6 +36,20 @@ interface Draft {
 }
 
 const EMPTY: Draft = { picked: [], custom: "", other: false };
+/** A question with nothing to choose from is answered in words, so its
+ * text field is open from the start instead of behind "Other". */
+const OPEN: Draft = { picked: [], custom: "", other: true };
+
+/** Where an untouched question's draft starts. */
+export function initialDraft(question: AskQuestion): Draft {
+  return question.options.length ? EMPTY : OPEN;
+}
+
+/** One question, one pick: choosing it is the whole answer, so the card
+ * sends it right away rather than waiting for Submit. */
+export function answersInOneTap(questions: readonly AskQuestion[]): boolean {
+  return questions.length === 1 && !questions[0]!.multiSelect && questions[0]!.options.length > 0;
+}
 
 function answersOf(draft: Draft): string[] {
   const custom = draft.other ? draft.custom.trim() : "";
@@ -104,7 +118,7 @@ export function QuestionCard({
   const [sent, setSent] = useState<string | null>(null);
 
   const answered = useMemo(
-    () => questions.map((_, index) => answersOf(drafts[index] ?? EMPTY).length > 0),
+    () => questions.map((question, index) => answersOf(drafts[index] ?? initialDraft(question)).length > 0),
     [questions, drafts],
   );
 
@@ -112,12 +126,13 @@ export function QuestionCard({
   const settled = Boolean(card.answered) || sent !== null;
   const current = questions[Math.min(active, questions.length - 1)]!;
   const currentIndex = Math.min(active, questions.length - 1);
-  const draft = drafts[currentIndex] ?? EMPTY;
+  const draft = drafts[currentIndex] ?? initialDraft(current);
+  const oneTap = answersInOneTap(questions);
   const answeredCount = answered.filter(Boolean).length;
   const complete = answeredCount === questions.length;
 
   const update = (index: number, next: Partial<Draft>) =>
-    setDrafts((previous) => ({ ...previous, [index]: { ...(previous[index] ?? EMPTY), ...next } }));
+    setDrafts((previous) => ({ ...previous, [index]: { ...(previous[index] ?? initialDraft(questions[index]!)), ...next } }));
 
   const choose = (label: string) => {
     if (settled) return;
@@ -131,6 +146,10 @@ export function QuestionCard({
     // Single-select is a radio group: picking replaces, and picking an
     // option means the free-text answer was not the one they wanted.
     update(currentIndex, { picked: [label], other: false });
+    if (oneTap) {
+      send({ ...drafts, [currentIndex]: { ...draft, picked: [label], other: false } });
+      return;
+    }
     // Move to the next question they still owe an answer to, the way the
     // tabs would have been clicked anyway. The last one stays put so the
     // submit button is under the cursor that just chose.
@@ -148,8 +167,14 @@ export function QuestionCard({
   };
 
   const submit = () => {
-    if (settled || !complete || !card.requestId) return;
-    const answer = formatQuestionAnswers(questions, questions.map((_, index) => answersOf(drafts[index] ?? EMPTY)));
+    if (complete) send(drafts);
+  };
+
+  function send(final: Record<number, Draft>) {
+    if (settled || !card?.requestId) return;
+    const answers = questions.map((question, index) => answersOf(final[index] ?? initialDraft(question)));
+    if (answers.some((entry) => !entry.length)) return;
+    const answer = formatQuestionAnswers(questions, answers);
     if (!answer) return;
     setSent(answer);
     returnFocusToComposer();
@@ -163,7 +188,7 @@ export function QuestionCard({
       // being answerable rather than sitting there looking settled.
       onError: () => setSent(null),
     });
-  };
+  }
 
   if (settled) {
     const answer = card.answeredText ?? sent;
@@ -199,10 +224,16 @@ export function QuestionCard({
       meta={meta}
       footer={
         <>
-          <span className="me-auto text-[12px] text-ink-tertiary">{t("question.status.waiting")}</span>
-          <button type="button" onClick={submit} disabled={!complete} className={ASK_PRIMARY_BUTTON}>
-            {questions.length > 1 ? t("question.submitAll") : t("question.submit")}
-          </button>
+          <span className="me-auto text-[12px] text-ink-tertiary">
+            {oneTap && !draft.other ? t("question.status.pickOne") : t("question.status.waiting")}
+          </span>
+          {/* a one-tap card has nothing to submit until "Other" is open:
+              picking an option already sent it */}
+          {!(oneTap && !draft.other) && (
+            <button type="button" onClick={submit} disabled={!complete} className={ASK_PRIMARY_BUTTON}>
+              {questions.length > 1 ? t("question.submitAll") : t("question.submit")}
+            </button>
+          )}
         </>
       }
     >
@@ -236,84 +267,96 @@ export function QuestionCard({
       <ExpandableText text={current.question} className="text-[14px] leading-relaxed text-ink" />
       {multi && <div className="mt-0.5 text-[12px] text-ink-tertiary">{t("question.multiHint")}</div>}
 
-      <div
-        role={multi ? "group" : "radiogroup"}
-        aria-label={current.question}
-        onKeyDown={moveChoiceFocus}
-        className={chips
-          ? "mt-2.5 flex flex-wrap gap-1.5"
-          : "mt-2.5 overflow-hidden rounded-lg border border-hairline/40"}
-      >
-        {current.options.map((option, index) => {
-          const picked = draft.picked.includes(option.label);
-          return chips ? (
-            <Chip
-              key={option.label}
-              multi={multi}
-              checked={picked}
-              onClick={() => choose(option.label)}
-              label={option.label}
-            />
+      {current.options.length > 0 && (
+        <div
+          role={multi ? "group" : "radiogroup"}
+          aria-label={current.question}
+          onKeyDown={moveChoiceFocus}
+          className={chips
+            ? "mt-2.5 flex flex-wrap gap-1.5"
+            : "mt-2.5 overflow-hidden rounded-lg border border-hairline/40"}
+        >
+          {current.options.map((option, index) => {
+            const picked = draft.picked.includes(option.label);
+            return chips ? (
+              <Chip
+                key={option.label}
+                multi={multi}
+                checked={picked}
+                onClick={() => choose(option.label)}
+                label={option.label}
+              />
+            ) : (
+              <button
+                key={option.label}
+                type="button"
+                data-ask-choice=""
+                role={multi ? "checkbox" : "radio"}
+                aria-checked={picked}
+                onClick={() => choose(option.label)}
+                className={cn(
+                  "flex w-full items-start gap-2.5 px-3 py-2 text-start",
+                  index > 0 && "border-t border-hairline/40",
+                  // `raised` is the same value as the card in the light
+                  // skins; `raised-hover` is the one tone every skin
+                  // guarantees stands off a surface.
+                  picked ? "bg-raised-hover" : "hover:bg-raised-hover/60",
+                )}
+              >
+                <Marker checked={picked} multi={multi} />
+                <span className="min-w-0">
+                  <span dir="auto" className="block text-[13.5px] font-medium text-ink">{option.label}</span>
+                  {option.description && (
+                    <span dir="auto" className="block text-[12.5px] leading-snug text-ink-secondary">{option.description}</span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+          {chips ? (
+            <Chip multi={multi} checked={draft.other} onClick={toggleOther} label={t("question.other")} />
           ) : (
             <button
-              key={option.label}
               type="button"
               data-ask-choice=""
               role={multi ? "checkbox" : "radio"}
-              aria-checked={picked}
-              onClick={() => choose(option.label)}
+              aria-checked={draft.other}
+              onClick={toggleOther}
               className={cn(
-                "flex w-full items-start gap-2.5 px-3 py-2 text-start",
-                index > 0 && "border-t border-hairline/40",
-                // `raised` is the same value as the card in the light
-                // skins; `raised-hover` is the one tone every skin
-                // guarantees stands off a surface.
-                picked ? "bg-raised-hover" : "hover:bg-raised-hover/60",
+                "flex w-full items-center gap-2.5 px-3 py-2 text-start",
+                current.options.length > 0 && "border-t border-hairline/40",
+                draft.other ? "bg-raised-hover" : "hover:bg-raised-hover/60",
               )}
             >
-              <Marker checked={picked} multi={multi} />
-              <span className="min-w-0">
-                <span dir="auto" className="block text-[13.5px] font-medium text-ink">{option.label}</span>
-                {option.description && (
-                  <span dir="auto" className="block text-[12.5px] leading-snug text-ink-secondary">{option.description}</span>
-                )}
-              </span>
+              <Marker checked={draft.other} multi={multi} />
+              <span className="text-[13.5px] text-ink">{t("question.other")}</span>
             </button>
-          );
-        })}
-        {chips ? (
-          <Chip multi={multi} checked={draft.other} onClick={toggleOther} label={t("question.other")} />
-        ) : (
-          <button
-            type="button"
-            data-ask-choice=""
-            role={multi ? "checkbox" : "radio"}
-            aria-checked={draft.other}
-            onClick={toggleOther}
-            className={cn(
-              "flex w-full items-center gap-2.5 px-3 py-2 text-start",
-              current.options.length > 0 && "border-t border-hairline/40",
-              draft.other ? "bg-raised-hover" : "hover:bg-raised-hover/60",
-            )}
-          >
-            <Marker checked={draft.other} multi={multi} />
-            <span className="text-[13.5px] text-ink">{t("question.other")}</span>
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
       {draft.other && (
-        <input
-          autoFocus
+        // A textarea, so an answer can run to a few lines: Enter sends,
+        // Shift+Enter starts a new line. It grows with its text up to a cap.
+        // Focus moves here only when the person opened "Other"; an open
+        // question does not take the cursor away from the composer.
+        <textarea
+          autoFocus={current.options.length > 0}
           dir="auto"
+          rows={1}
           value={draft.custom}
           maxLength={MAX_CUSTOM_ANSWER}
-          aria-label={t("question.otherPlaceholder")}
+          aria-label={current.options.length ? t("question.otherPlaceholder") : current.question}
           onChange={(event) => update(currentIndex, { custom: event.target.value })}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.nativeEvent.isComposing && complete) submit();
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            if (complete) submit();
           }}
-          placeholder={t("question.otherPlaceholder")}
-          className="mt-2 w-full rounded-lg border border-hairline/40 bg-inset px-3 py-1.5 text-[13.5px] text-ink placeholder:text-ink-tertiary focus:border-accent focus:outline-none"
+          placeholder={current.options.length ? t("question.otherPlaceholder") : t("question.answerPlaceholder")}
+          className={cn(
+            "block max-h-40 min-h-[34px] w-full resize-none rounded-lg border border-hairline/40 bg-inset px-3 py-1.5 text-[13.5px] leading-snug text-ink [field-sizing:content] placeholder:text-ink-tertiary focus:border-accent focus:outline-none",
+            current.options.length > 0 ? "mt-2" : "mt-2.5",
+          )}
         />
       )}
     </AskCard>
