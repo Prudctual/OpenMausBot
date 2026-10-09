@@ -21,6 +21,11 @@ describe("AskCard", () => {
     // logical sides, so the card mirrors in a right-to-left chat
     expect(html).toContain("text-start");
     expect(html).not.toContain("text-left");
+    // the composer's surface, with no accent border or glow
+    expect(html).toContain("rounded-3xl bg-composer");
+    expect(html).toContain("ring-1 ring-composer-ring");
+    expect(html).not.toContain("border-accent");
+    expect(html).not.toContain("shadow");
   });
 
   it("offers a dismiss button only with a name for it", () => {

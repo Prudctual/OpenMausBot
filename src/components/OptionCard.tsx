@@ -101,7 +101,7 @@ export function OptionCard({
       dismissLabel={t("onboarding.card.dismiss")}
     >
       {options.length > 0 && (
-        <div onKeyDown={moveChoiceFocus} className="overflow-hidden rounded-lg border border-hairline/40">
+        <div onKeyDown={moveChoiceFocus} className="overflow-hidden rounded-2xl border border-hairline/40">
           {options.map((opt, i) => (
             <button
               key={opt}
