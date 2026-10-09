@@ -22,7 +22,19 @@ import {
   questionAnswersByQuestion,
   type AskQuestion,
 } from "../../shared/ask-question";
-import { ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON, AskCard, AskSettledLine, moveChoiceFocus, returnFocusToComposer } from "./AskCard";
+import {
+  ASK_CHIP,
+  ASK_CHIP_IDLE,
+  ASK_CHIP_PICKED,
+  ASK_FIELD,
+  ASK_PRIMARY_BUTTON,
+  ASK_QUIET_BUTTON,
+  ASK_SMALL_PILL,
+  AskCard,
+  AskSettledLine,
+  moveChoiceFocus,
+  returnFocusToComposer,
+} from "./AskCard";
 import { ExpandableText } from "./ExpandableText";
 
 /** What each question has been answered with so far. Option labels and the
@@ -251,13 +263,13 @@ export function QuestionCard({
               aria-selected={index === currentIndex}
               onClick={() => setActive(index)}
               className={cn(
-                "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12.5px] transition-colors",
+                ASK_SMALL_PILL,
                 index === currentIndex
                   ? "bg-control text-ink"
                   : "text-ink-secondary hover:bg-control/60 hover:text-ink",
               )}
             >
-              {answered[index] && <Check size={12} className="text-success" />}
+              {answered[index] && <Check size={14} className="text-success" />}
               {tabLabel(question, index)}
             </button>
           ))}
@@ -305,7 +317,7 @@ export function QuestionCard({
               >
                 <Marker checked={picked} multi={multi} />
                 <span className="min-w-0">
-                  <span dir="auto" className="block text-[13.5px] font-medium text-ink">{option.label}</span>
+                  <span dir="auto" className="block text-[13px] font-medium leading-5 text-ink">{option.label}</span>
                   {option.description && (
                     <span dir="auto" className="block text-[12.5px] leading-snug text-ink-secondary">{option.description}</span>
                   )}
@@ -329,7 +341,7 @@ export function QuestionCard({
               )}
             >
               <Marker checked={draft.other} multi={multi} />
-              <span className="text-[13.5px] text-ink">{t("question.other")}</span>
+              <span className="text-[13px] font-medium leading-5 text-ink">{t("question.other")}</span>
             </button>
           )}
         </div>
@@ -354,7 +366,10 @@ export function QuestionCard({
           }}
           placeholder={current.options.length ? t("question.otherPlaceholder") : t("question.answerPlaceholder")}
           className={cn(
-            "block max-h-40 min-h-[34px] w-full resize-none rounded-lg border border-hairline/40 bg-inset px-3 py-1.5 text-[13.5px] leading-snug text-ink [field-sizing:content] placeholder:text-ink-tertiary focus:border-accent focus:outline-none",
+            ASK_FIELD,
+            // grows with its text: the 32px start is one line, like the
+            // field beside a key's Save button
+            "block h-auto max-h-40 min-h-8 w-full resize-none py-[5px] [field-sizing:content]",
             current.options.length > 0 ? "mt-2" : "mt-2.5",
           )}
         />
@@ -399,13 +414,11 @@ function Chip({ label, checked, multi, onClick }: { label: string; checked: bool
       aria-checked={checked}
       onClick={onClick}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-full border px-3 py-1 text-[13px] transition-colors",
-        checked
-          ? "border-accent bg-accent/15 text-ink"
-          : "border-hairline/70 text-ink hover:bg-raised-hover/60",
+        ASK_CHIP,
+        checked ? ASK_CHIP_PICKED : ASK_CHIP_IDLE,
       )}
     >
-      {checked && <Check size={12} className="shrink-0 text-accent-text" strokeWidth={2.5} />}
+      {checked && <Check size={14} className="text-accent-text" strokeWidth={2.5} />}
       <span dir="auto" className="min-w-0 truncate">{label}</span>
     </button>
   );

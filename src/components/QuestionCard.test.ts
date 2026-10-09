@@ -129,7 +129,7 @@ describe("QuestionCard", () => {
   it("leads a single question with its header as the accent title, and names the bot quietly", () => {
     const single = message({ questionRequest: { version: 1, questions: [questionRequest.questions[1]!] } });
     const markup = render(single);
-    expect(markup).toMatch(/text-accent-text[^"]*">Style</);
+    expect(markup).toMatch(/text-accent-text[^"]*"><bdi dir="auto">Style</);
     expect(markup).toContain("Hazelnut");
     expect(markup).not.toContain("Hazelnut has a question");
   });

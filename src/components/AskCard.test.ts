@@ -16,7 +16,7 @@ describe("AskCard", () => {
     }));
     expect(html).toContain('role="group"');
     expect(html).toContain('aria-label="Plan"');
-    expect(html).toMatch(/text-accent-text[^"]*">Choose a plan</);
+    expect(html).toMatch(/text-accent-text[^"]*"><bdi dir="auto">Choose a plan</);
     expect(html).toContain("The workspace needs one before it can start.");
     // logical sides, so the card mirrors in a right-to-left chat
     expect(html).toContain("text-start");

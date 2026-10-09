@@ -4,7 +4,7 @@ import { useStore, visibleMessages, type Message } from "@/state/store";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { isPersistentQuestionCard, parseChoices } from "../../shared/ask-question";
-import { ASK_QUIET_BUTTON, AskCard, AskSettledLine, moveChoiceFocus, returnFocusToComposer } from "./AskCard";
+import { ASK_FIELD, ASK_QUIET_BUTTON, AskCard, AskSettledLine, moveChoiceFocus, returnFocusToComposer } from "./AskCard";
 import { ExpandableText } from "./ExpandableText";
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"];
@@ -80,8 +80,8 @@ export function OptionCard({
         ariaLabel={title}
         icon={picked === undefined ? <X size={13} /> : undefined}
         action={dismiss && (
-          <button type="button" onClick={dismiss} aria-label={t("onboarding.card.dismiss")} title={t("onboarding.card.dismiss")} className={ASK_QUIET_BUTTON}>
-            <X size={12} />
+          <button type="button" onClick={dismiss} aria-label={t("onboarding.card.dismiss")} title={t("onboarding.card.dismiss")} className={cn(ASK_QUIET_BUTTON, "w-7 px-0")}>
+            <X size={14} />
           </button>
         )}
       >
@@ -110,7 +110,7 @@ export function OptionCard({
               disabled={!!card.answered}
               onClick={() => answer(opt)}
               className={cn(
-                "flex w-full items-center gap-2.5 px-3 py-2 text-start text-[13.5px] text-ink",
+                "flex w-full items-center gap-2.5 px-3 py-2 text-start text-[13px] font-medium leading-5 text-ink",
                 i > 0 && "border-t border-hairline/40",
                 // `raised` is the wrong fill here: the light skins define it as
                 // pure white, the same value as the card underneath, so a
@@ -143,7 +143,8 @@ export function OptionCard({
           onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && answer(custom)}
           placeholder={t("onboarding.card.custom")}
           className={cn(
-            "w-full rounded-lg border border-hairline/40 bg-inset px-3 py-1.5 text-[13.5px] text-ink placeholder:text-ink-tertiary focus:border-accent focus:outline-none",
+            ASK_FIELD,
+            "block w-full",
             options.length > 0 && "mt-2",
           )}
         />

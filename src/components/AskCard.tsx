@@ -42,7 +42,11 @@ export function AskCard({
     >
       <div className="flex min-w-0 items-center gap-2">
         <span aria-hidden="true" className="flex shrink-0 text-accent-text">{icon}</span>
-        <div dir="auto" className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-accent-text">{title}</div>
+        {/* the direction goes on the text, not the box: an English title
+            in a right-to-left chat still sits beside its icon */}
+        <div className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-accent-text">
+          <bdi dir="auto">{title}</bdi>
+        </div>
         {meta && <span className="shrink-0 text-[11.5px] tabular-nums text-ink-tertiary">{meta}</span>}
         {onDismiss && dismissLabel && (
           <button
@@ -50,7 +54,7 @@ export function AskCard({
             onClick={onDismiss}
             aria-label={dismissLabel}
             title={dismissLabel}
-            className="-me-1 shrink-0 rounded-md p-1 text-ink-tertiary hover:bg-control hover:text-ink"
+            className="-my-1 -me-1.5 flex size-7 shrink-0 items-center justify-center rounded-full text-ink-tertiary hover:bg-control hover:text-ink"
           >
             <X size={14} />
           </button>
@@ -98,14 +102,37 @@ export function AskSettledLine({
   );
 }
 
-/** The accent fill every ask's main button uses. `accent-ink` rather than
- * white: Foundry's brass accent needs dark ink to stay readable. */
-export const ASK_PRIMARY_BUTTON =
-  "inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-[12.5px] font-medium text-accent-ink transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40";
+/**
+ * One type and box for every control on an ask: 13px at weight 500, a
+ * 20px line box centered in a fixed height, and the same gap between an
+ * icon and its label. A fixed height with a centered line box keeps Arabic
+ * and Latin labels on the same baseline band, where vertical padding alone
+ * lets each script's font metrics push the text off center.
+ */
+const ASK_CONTROL =
+  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[13px] font-medium leading-5 transition-colors [&>svg]:shrink-0 disabled:cursor-not-allowed disabled:opacity-40";
 
-/** A quiet text button for a settled line (Details, Continue task). */
-export const ASK_QUIET_BUTTON =
-  "shrink-0 rounded-md px-1.5 py-0.5 text-[12px] text-ink-tertiary hover:bg-inset hover:text-ink-secondary";
+/** The main action: the accent fill. `accent-ink` rather than white, since
+ * Foundry's brass accent needs dark ink to stay readable. */
+export const ASK_PRIMARY_BUTTON =
+  `${ASK_CONTROL} h-8 rounded-full border border-transparent bg-accent px-3.5 text-accent-ink hover:brightness-110`;
+
+/** A choice. The same height and type as the main action, outlined until
+ * it is picked, then tinted with the accent. */
+export const ASK_CHIP = `${ASK_CONTROL} h-8 max-w-full rounded-full border px-3.5`;
+export const ASK_CHIP_IDLE = "border-hairline/70 text-ink hover:bg-raised-hover/60";
+export const ASK_CHIP_PICKED = "border-accent bg-accent/15 text-ink";
+
+/** A smaller pill: question tabs, and the quiet actions on a settled line
+ * (Details, Continue task, Try again). Same type, shorter box. */
+export const ASK_SMALL_PILL = `${ASK_CONTROL} h-7 rounded-full px-3`;
+/** The negative margin keeps a settled line one text line tall while the
+ * button keeps its full 28px target. */
+export const ASK_QUIET_BUTTON = `${ASK_SMALL_PILL} -my-1 text-ink-tertiary hover:bg-inset hover:text-ink-secondary`;
+
+/** A one-line field beside a button: the button's height and type. */
+export const ASK_FIELD =
+  "h-8 rounded-lg border border-hairline/60 bg-inset px-3 text-[13px] leading-5 text-ink outline-none placeholder:text-ink-tertiary focus:border-accent disabled:opacity-60";
 
 /** An answered ask folds away with the control that answered it, which
  * would drop keyboard focus onto the page. Hand it to the composer, where
