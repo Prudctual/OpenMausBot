@@ -68,8 +68,11 @@ rules, and ACP agents such as Grok receive their `allow_always` option, or the
 driver repeats your answer for that exact operation until the native session
 ends. A chat-completions engine has no provider session, so the API Grok,
 MiniMax, Mistral, and an OpenAI-compatible endpoint keep that one exact call
-in memory for the thread until the process exits. Nothing is written to disk.
-A different call still asks, and a send, computer or browser control, and a
+in memory for the thread until the process exits, the engine is reloaded, or
+the thread is deleted. Nothing is written to disk. The call is tied to the
+exact MCP server that runs it (its name, command, arguments and environment),
+so the same tool name on another server, or on that server after its settings
+change, asks again. A different call still asks, and a send, computer or browser control, and a
 guest turn are not remembered. OpenMausBot keeps no standing grant on disk for
 a provider's tool. It is not offered for computer control or for a sandbox
 change.

@@ -746,7 +746,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                 // control stay a card every time.
                 const sessionKey = turn.guestConfined || !shown.ask
                   ? null
-                  : chatSessionOperationKey(shown.title, shown.input);
+                  : chatSessionOperationKey(shown.title, shown.input, shown.grant);
                 const allowed = turn.approvalMode === "full" || !shown.ask
                   || (sessionKey !== null && sessionMemory.has(turn.threadId, sessionKey))
                   || await approval.ask(shown.title, shownPreview ?? "This tool has no arguments.", sessionKey);
@@ -891,6 +891,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         return "steered";
       },
       hasSession: (threadId) => active.has(threadId),
+      forgetThread: (threadId) => sessionMemory.forget(threadId),
       stopAll: async () => {
         const turns = [...active.values()];
         for (const turn of turns) turn.abort.abort();
@@ -912,6 +913,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       for (const turn of turns) turn.abort.abort();
       await Promise.all(turns.map((turn) => turn.done));
       listeners.clear();
+      sessionMemory.clear();
     },
   };
 }

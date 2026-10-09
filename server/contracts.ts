@@ -360,6 +360,10 @@ export interface ProviderAdapter {
    *   may already be running, and replaying them would execute them twice. */
   steer?(threadId: ThreadId, text: string): Promise<SteerOutcome>;
   hasSession(threadId: ThreadId): boolean;
+  /** The thread was deleted: drop anything kept in memory for it, such as
+   * the chat-completions runtime's "Always allow this session" grants.
+   * Optional: drivers that keep nothing per thread leave it out. */
+  forgetThread?(threadId: ThreadId): void;
   stopAll(): Promise<void>;
   onEvent(listener: RuntimeEventListener): () => void;
 }

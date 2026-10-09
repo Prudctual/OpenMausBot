@@ -19,10 +19,16 @@ function stableJson(value: unknown): unknown {
 }
 
 /** The exact operation "Always allow this session" can remember. Null for a
- * question, a send, computer or browser control, or a payload too large to
- * keep. Two calls with the same fields in a different order share a key. */
-export function chatSessionOperationKey(name: string, args: unknown): string | null {
+ * question, a send, computer or browser control, a call with no mounted
+ * server behind it, or a payload too large to keep. `server` names the exact
+ * mounted server and the tool it runs (ChatToolCallView.grant), so a tool
+ * with the same displayed name on another server, or on the same server name
+ * after its command, address or settings change, never matches an old grant,
+ * and a grant follows its server when a name collision renames the tool.
+ * Two calls with the same fields in a different order share a key. */
+export function chatSessionOperationKey(name: string, args: unknown, server: string | undefined): string | null {
   if (!name || name === "ask_user" || HOST_CONTROL.test(name) || isOutboundTool(name)) return null;
+  if (!server) return null;
   if (!args || typeof args !== "object" || Array.isArray(args)) return null;
   let encoded: string;
   try {
@@ -31,10 +37,16 @@ export function chatSessionOperationKey(name: string, args: unknown): string | n
     return null;
   }
   if (!encoded || encoded.length > SESSION_KEY_MAX) return null;
-  return `${name}\n${encoded}`;
+  return `${server}\n${encoded}`;
 }
 
-/** In-memory exact operations for one runtime. Nothing is written to disk. */
+/** Threads and grants kept at most. The oldest goes first. */
+export const SESSION_THREADS_MAX = 256;
+export const SESSION_KEYS_PER_THREAD_MAX = 256;
+
+/** In-memory exact operations for one runtime. Nothing is written to disk.
+ * A deleted thread drops its grants (forget), disposing the runtime drops all
+ * of them (clear), and both maps are capped so a long run can't grow them. */
 export function createChatSessionMemory() {
   const threads = new Map<string, Set<string>>();
   return {
@@ -43,8 +55,21 @@ export function createChatSessionMemory() {
     },
     remember(threadId: string, key: string) {
       const keys = threads.get(threadId) ?? new Set<string>();
+      threads.delete(threadId);
+      keys.delete(key);
       keys.add(key);
+      if (keys.size > SESSION_KEYS_PER_THREAD_MAX) keys.delete(keys.values().next().value!);
       threads.set(threadId, keys);
+      if (threads.size > SESSION_THREADS_MAX) threads.delete(threads.keys().next().value!);
+    },
+    forget(threadId: string) {
+      threads.delete(threadId);
+    },
+    clear() {
+      threads.clear();
+    },
+    get threadCount() {
+      return threads.size;
     },
   };
 }
