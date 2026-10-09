@@ -84,10 +84,11 @@ describe("bounded browser input queue", () => {
     for (let n = 0; n < 40; n++) queue.enqueue(key("keyDown", String(n)));
     queue.enqueue(up);
     expect(onError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: expect.stringContaining("Reconnect the view before typing again") }));
-    // A hung engine fills the queue too. Say the engine is stuck, not that the network is slow.
-    expect(onError.mock.calls[0][0].message).toContain("browser engine is stuck");
-    expect(onError.mock.calls[0][0].message).toContain("Restart");
-    expect(onError.mock.calls[0][0].message).not.toMatch(/connection/i);
+    // A full queue is not proof of either cause: a hung engine and a slow
+    // connection both fill it, so the message names both and the way out.
+    expect(onError.mock.calls[0][0].message).toContain("engine may be stuck");
+    expect(onError.mock.calls[0][0].message).toContain("connection may be slow");
+    expect(onError.mock.calls[0][0].message).toContain("press Restart in the Browser panel");
     first.resolve(); await queue.drain();
     expect(send.mock.calls.map(([body]) => body)).toEqual([key("keyDown", "held"), key("keyUp", "held"), up]);
     queue.clear(); queue.enqueue(key("keyDown", "after reconnect")); await queue.drain();

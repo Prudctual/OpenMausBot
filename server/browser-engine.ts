@@ -8,7 +8,7 @@
 //
 // Fail closed, say why: a missing engine reports `unavailable` with a
 // reason a person can act on, never a silently browserless bot.
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chmodSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -178,31 +178,59 @@ export type BrowserEngineStatus =
   | { kind: "ready"; binaryPath: string; version: string; warning?: string }
   | { kind: "unavailable"; reason: string; installable: boolean };
 
-/** One probe per binary mtime. Status is read on computer selection, so a
- * PATH install must not spawn `--version` on every call. */
-const probedVersions = new Map<string, { mtimeMs: number; version: string | null }>();
+/** Reads an unmanaged binary's `--version` output without blocking. */
+export type AgentBrowserVersionRunner = (binaryPath: string) => Promise<string>;
+
+const runVersion: AgentBrowserVersionRunner = (binaryPath) => new Promise((resolve, reject) => {
+  execFile(binaryPath, ["--version"], { encoding: "utf8", timeout: 1_500, windowsHide: true }, (error, stdout) => {
+    if (error) reject(error);
+    else resolve(String(stdout));
+  });
+});
+
+/** One probe per binary mtime. Status is read on request paths (computer
+ * selection, the browser panel), so it never spawns or waits: it starts an
+ * async probe and answers from the cache. */
+const probedVersions = new Map<string, { mtimeMs: number; version?: string | null; pending?: Promise<string | null> }>();
 const warnedBrowserVersions = new Set<string>();
 
-function probedAgentBrowserVersion(binaryPath: string): string | null {
-  let mtimeMs = 0;
+function versionWarning(version: string): string | undefined {
+  return version === AGENT_BROWSER_VERSION ? undefined : `installed agent-browser ${version} is not the pinned ${AGENT_BROWSER_VERSION}`;
+}
+
+function warnVersionOnce(binaryPath: string, version: string, warning: string | undefined): void {
+  if (!warning || warnedBrowserVersions.has(`${binaryPath}\0${version}`)) return;
+  warnedBrowserVersions.add(`${binaryPath}\0${version}`);
+  console.warn(`browser engine: ${warning} at ${binaryPath}. A different build can stall browser tools; install ${AGENT_BROWSER_VERSION}.`);
+}
+
+/** The installed version of an unmanaged binary: a string once read, null
+ * when it could not be read, undefined while the first probe for this mtime
+ * is still running. Never blocks; a stalled binary only keeps it undefined
+ * until the 1.5 s probe timeout. */
+export function cachedAgentBrowserVersion(binaryPath: string, run: AgentBrowserVersionRunner = runVersion): string | null | undefined {
+  let mtimeMs: number;
   try { mtimeMs = statSync(binaryPath).mtimeMs; }
   catch { return null; }
   const cached = probedVersions.get(binaryPath);
   if (cached && cached.mtimeMs === mtimeMs) return cached.version;
-  let version: string | null = null;
-  try {
-    const output = execFileSync(binaryPath, ["--version"], {
-      encoding: "utf8",
-      timeout: 1_500,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "ignore"],
+  const entry: { mtimeMs: number; version?: string | null; pending?: Promise<string | null> } = { mtimeMs };
+  probedVersions.set(binaryPath, entry);
+  entry.pending = run(binaryPath)
+    .then((output) => output.match(/\d+\.\d+\.\d+(?:-[\w.]+)?/)?.[0] ?? null, () => null)
+    .then((version) => {
+      entry.version = version;
+      delete entry.pending;
+      const shown = version ?? "unknown";
+      if (probedVersions.get(binaryPath) === entry) warnVersionOnce(binaryPath, shown, versionWarning(shown));
+      return version;
     });
-    version = String(output).match(/\d+\.\d+\.\d+(?:-[\w.]+)?/)?.[0] ?? null;
-  } catch {
-    version = null;
-  }
-  probedVersions.set(binaryPath, { mtimeMs, version });
-  return version;
+  return undefined;
+}
+
+/** The probe in flight for this binary, if any. Tests await it. */
+export function pendingAgentBrowserVersionProbe(binaryPath: string): Promise<string | null> | undefined {
+  return probedVersions.get(binaryPath)?.pending;
 }
 
 function executableName(platform: NodeJS.Platform = process.platform): string {
@@ -244,9 +272,11 @@ interface BrowserLookupOptions {
    * node_modules/.bin, a dev machine's global wrapper — is not the engine
    * whose saved sessions this process manages. */
   managedOnly?: boolean;
-  /** Installed version of an unmanaged binary. Tests pass this so status
-   * never spawns a fake path. Production probes `--version` once per mtime. */
-  versionOf?: (binaryPath: string) => string | null;
+  /** Installed version of an unmanaged binary, undefined while unknown.
+   * Tests pass this so status never spawns a fake path. Production reads
+   * cachedAgentBrowserVersion, which probes `--version` once per mtime in
+   * the background. */
+  versionOf?: (binaryPath: string) => string | null | undefined;
 }
 
 function packagedBrowser(options: BrowserLookupOptions) {
@@ -424,15 +454,12 @@ export function browserEngineStatus(options: BrowserLookupOptions = {}): Browser
     }
     // An unmanaged binary used to be labelled with the pin, which hid a
     // global install of a different agent-browser (the stall in #1941).
-    const actual = options.versionOf ? options.versionOf(binaryPath) : probedAgentBrowserVersion(binaryPath);
+    const actual = options.versionOf ? options.versionOf(binaryPath) : cachedAgentBrowserVersion(binaryPath);
+    // Still probing: say so, and warn once the answer is in.
+    if (actual === undefined) return { kind: "ready", binaryPath, version: "unknown" };
     const version = actual ?? "unknown";
-    const warning = version === AGENT_BROWSER_VERSION
-      ? undefined
-      : `installed agent-browser ${version} is not the pinned ${AGENT_BROWSER_VERSION}`;
-    if (warning && !warnedBrowserVersions.has(`${binaryPath}\0${version}`)) {
-      warnedBrowserVersions.add(`${binaryPath}\0${version}`);
-      console.warn(`browser engine: ${warning} at ${binaryPath}. A different build can stall browser tools; install ${AGENT_BROWSER_VERSION}.`);
-    }
+    const warning = versionWarning(version);
+    warnVersionOnce(binaryPath, version, warning);
     return { kind: "ready", binaryPath, version, ...(warning ? { warning } : {}) };
   }
   if (bundle && (options.exists ?? existsSync)(bundle.directory)) {
