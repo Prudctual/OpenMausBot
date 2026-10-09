@@ -634,6 +634,8 @@ export function PluginsPanel() {
     ? botsMissingConnectedApps(state.bots, state.instances)
     : [];
   const chooseFilter = (next: AppsFilter) => {
+    // a filter replaces the category view, so a stale category cannot hide the MCP section
+    setCategory(null);
     if (next === "mcp") {
       dispatch({ type: "togglePlugins", open: true, surface: "mcp" });
       return;

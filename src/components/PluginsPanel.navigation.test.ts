@@ -296,6 +296,14 @@ describe("Apps pop-up", () => {
     expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "togglePlugins", open: true, surface: "apps" });
   });
 
+  it("drops a selected category when a filter is chosen, so the MCP section comes back", () => {
+    fixture.overrides.set(20, "Design");
+    expect(render().html).not.toContain("MCP inventory");
+    chip(render().nodes, "mcp").props.onClick!();
+    expect(fixture.overrides.get(20)).toBeNull();
+    expect(render().html).toContain("MCP inventory");
+  });
+
   it("shows only connected apps, and no MCP section, under Connected", () => {
     fixture.overrides.set(16, "connected");
     const { html, nodes: tree } = render();
