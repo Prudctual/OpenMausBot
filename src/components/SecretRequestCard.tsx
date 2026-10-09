@@ -4,7 +4,7 @@ import { ExternalLink, KeyRound, Loader2, LockKeyhole, RefreshCw, X } from "luci
 import { credentialConfigPatch, credentialResumeOutcome } from "../../shared/credential-request";
 import { cn } from "@/lib/cn";
 import { api, useStore, type ConfigStatus, type Message } from "@/state/store";
-import { ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON, AskCard, AskSettledLine, returnFocusToComposer } from "./AskCard";
+import { ASK_FIELD, ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON, AskCard, AskSettledLine, returnFocusToComposer } from "./AskCard";
 
 // The key a bot asked for. It waits in the shared ask card with a masked
 // field, and once saved folds into one line that names the key and never
@@ -121,8 +121,9 @@ export function SecretRequestCard({
 
   if (provided || declined) {
     const retry = !secret.resumed && error ? (
-      <button type="button" onClick={() => void retryResume()} disabled={saving} className={cn(ASK_QUIET_BUTTON, "inline-flex items-center gap-1 text-accent-text")}>
-        {saving ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Try again
+      <button type="button" onClick={() => void retryResume()} disabled={saving} className={cn(ASK_QUIET_BUTTON, "text-accent-text")}>
+        {saving ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+        Try again
       </button>
     ) : undefined;
     return (
@@ -170,10 +171,10 @@ export function SecretRequestCard({
               placeholder={secret.placeholder}
               disabled={saving || savedLocally}
               aria-label={secret.label}
-              className="min-w-[10rem] flex-1 rounded-lg border border-hairline/60 bg-inset px-3 py-1.5 text-[13px] text-ink outline-none placeholder:text-ink-tertiary focus:border-accent disabled:opacity-60"
+              className={cn(ASK_FIELD, "min-w-[10rem] flex-1")}
             />
             <button type="submit" disabled={saving || (!value.trim() && !savedLocally)} className={ASK_PRIMARY_BUTTON}>
-              {saving ? <Loader2 size={13} className="animate-spin" /> : <LockKeyhole size={13} />}
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <LockKeyhole size={14} />}
               {savedLocally ? "Continue task" : "Save securely"}
             </button>
           </div>

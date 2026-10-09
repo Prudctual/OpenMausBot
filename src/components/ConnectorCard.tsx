@@ -130,8 +130,9 @@ export function ConnectorCard({ botId, threadId, message }: { botId: string; thr
       <AskSettledLine
         ariaLabel={connector.label}
         action={!connector.resumed && (
-          <button type="button" onClick={() => void resume()} disabled={busy} className={cn(ASK_QUIET_BUTTON, "inline-flex items-center gap-1 text-accent-text")}>
-            {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} {t("connectors.card.continueTask")}
+          <button type="button" onClick={() => void resume()} disabled={busy} className={cn(ASK_QUIET_BUTTON, "text-accent-text")}>
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            {t("connectors.card.continueTask")}
           </button>
         )}
         detail={error && <p role="alert" className="ms-[19px] mt-1 text-[12px] text-danger">{typeof error === "string" ? error : t(error.key)}</p>}
@@ -160,7 +161,7 @@ export function ConnectorCard({ botId, threadId, message }: { botId: string; thr
             {authorizing ? t("connectors.card.waiting") : t("connectors.card.requested")}
           </span>
           <button type="button" onClick={() => void connect()} disabled={busy} className={ASK_PRIMARY_BUTTON}>
-            {busy || authorizing ? <Loader2 size={13} className="animate-spin" /> : <PlugZap size={13} />}
+            {busy || authorizing ? <Loader2 size={14} className="animate-spin" /> : <PlugZap size={14} />}
             {authorizing
               ? t("connectors.card.openAgain")
               : connector.status === "failed"
