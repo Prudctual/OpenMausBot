@@ -67,6 +67,23 @@ describe("TurnPresence phrases", () => {
     expect(visibleText()).toEqual(["Searching the web"]);
   });
 
+  it("starts a returning phase over, even after a step too short to swap", () => {
+    render({ phrases: thinking, phase: "think" });
+    act(() => void vi.advanceTimersByTime(phraseHoldMs(`${seed}|think`, 0)));
+    expect(visibleText()).not.toEqual(["Thinking"]);
+    render({ phrases: ["Reading a file", "Reading through"], phase: "read" });
+    act(() => void vi.advanceTimersByTime(1000));
+    render({ phrases: thinking, phase: "think" });
+    expect(visibleText()).toEqual(["Thinking"]);
+  });
+
+  it("floats the outgoing phrase out of flow, so only the shown phrase sets the width", () => {
+    render({ phrases: thinking, phase: "think" });
+    act(() => void vi.advanceTimersByTime(phraseHoldMs(`${seed}|think`, 0)));
+    expect(host.querySelector(".turn-phrase-out")?.className).toContain("absolute");
+    expect(host.querySelector(".turn-phrase-in")?.className).not.toContain("absolute");
+  });
+
   it("keeps a single phrase steady", () => {
     render({ phrases: ["Running the test suite"], phase: "spoken" });
     act(() => void vi.advanceTimersByTime(60_000));

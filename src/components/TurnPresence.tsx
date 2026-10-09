@@ -20,9 +20,11 @@ export function useRotatingPhrase(
   active: boolean,
 ): { current: string; previous: string | null } {
   const phaseSeed = `${seed}|${phase}`;
-  // the step belongs to its phase, so a new phase reads step 0 on its very
-  // first render instead of flashing the old step's phrase
+  // the step belongs to its phase. A new phase resets it during render, so
+  // its first frame reads step 0 and a phase that comes back later starts
+  // over too, even when the phase between them ended before its first swap
   const [clock, setClock] = useState({ phaseSeed, step: 0 });
+  if (clock.phaseSeed !== phaseSeed) setClock({ phaseSeed, step: 0 });
   const step = clock.phaseSeed === phaseSeed ? clock.step : 0;
   const [previous, setPrevious] = useState<string | null>(null);
   const current = phraseAt(phrases, phaseSeed, step);
@@ -124,9 +126,16 @@ export function TurnPresence({
         {avatar}
         {showWorking ? (
           <span className="flex items-baseline gap-2 leading-none">
-            <span className="turn-phrase grid text-[13px]">
+            {/* the outgoing phrase floats over the incoming one, so the width
+                follows the shown phrase and the timer moves once per swap */}
+            <span className="turn-phrase relative grid text-[13px]">
               {previous !== null && previous !== current && (
-                <ShimmerPhrase key={`out:${previous}`} text={previous} className="turn-phrase-out" hidden />
+                <ShimmerPhrase
+                  key={`out:${previous}`}
+                  text={previous}
+                  className="turn-phrase-out absolute start-0 top-0 whitespace-nowrap"
+                  hidden
+                />
               )}
               <ShimmerPhrase
                 key={`in:${current}`}
