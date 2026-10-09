@@ -1471,6 +1471,7 @@ export function enabledSkillFile(botId: string, name: string, assignedLibrary?: 
  * Any other message, or a name that is not an enabled skill of this bot,
  * passes through unchanged, so an engine's own slash commands still work. */
 export function expandSkillCommandTurnText(botId: string, text: string, assignedLibrary?: readonly string[]): string {
+  if (!text.trimStart().startsWith("/")) return text;
   const names = resolveBotSkills(botId, assignedLibrary).filter((skill) => skill.enabled).map((skill) => skill.name);
   const command = parseSkillCommand(text, names);
   if (!command) return text;

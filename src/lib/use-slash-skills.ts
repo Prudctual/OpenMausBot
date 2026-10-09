@@ -15,8 +15,10 @@ export function enabledSlashSkills(body: SkillsResponse | null | undefined): Sla
 }
 
 /** A bot's enabled skills for the slash menu. Loaded when the menu opens
- * (`active`), and again each time it reopens, so a skill switched on in
- * settings shows up without a reload. A failed load just lists none. */
+ * (`active`), and again each time it reopens, so a skill switched on or off
+ * in settings shows the right way without a reload. Closing the menu drops
+ * the list, so a stale one never shows while the next load runs. A failed
+ * load just lists none. */
 export function useSlashSkills(botId: string | undefined, active: boolean): SlashSkill[] {
   const [skills, setSkills] = useState<{ botId: string; list: SlashSkill[] } | null>(null);
   useEffect(() => {
@@ -25,7 +27,10 @@ export function useSlashSkills(botId: string | undefined, active: boolean): Slas
     api(`/api/bots/${botId}/skills`)
       .then((body) => { if (!cancelled) setSkills({ botId, list: enabledSlashSkills(body as SkillsResponse) }); })
       .catch(() => { if (!cancelled) setSkills({ botId, list: [] }); });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      setSkills(null);
+    };
   }, [botId, active]);
-  return skills && skills.botId === botId ? skills.list : [];
+  return active && skills && skills.botId === botId ? skills.list : [];
 }

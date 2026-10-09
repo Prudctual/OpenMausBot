@@ -380,6 +380,13 @@ export function Composer({
     [mention?.start, mention?.query, slash?.start, slash?.query],
   );
 
+  // skills load after the menu opens, so the list can shrink under the
+  // highlighted row
+  useEffect(() => {
+    if (!commandPickerOpen) return;
+    setHighlight((current) => Math.min(current, commandCandidates.length - 1));
+  }, [commandCandidates.length, commandPickerOpen]);
+
   useEffect(() => {
     if (!commandPickerOpen) return;
     commandListRef.current
@@ -409,8 +416,8 @@ export function Composer({
     });
   };
 
-  const pickCommand = (command: ComposerSlashCommand) => {
-    if (!slash) return;
+  const pickCommand = (command: ComposerSlashCommand | undefined) => {
+    if (!slash || !command) return;
     const replacement = command.kind === "skill" ? `${command.label} `
       : command.id === "learn" ? "/learn " : command.id === "setup" ? "/setup " : "";
     const next = replaceComposerSlashTrigger(text, slash, replacement);
