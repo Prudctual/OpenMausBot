@@ -31,6 +31,8 @@ const TECHNICAL: RegExp[] = [
   /\b(?:API Error|HTTP|status(?: code)?)[:\s]+\d{3}\b/i,
   // a JSON parse failure
   /Unexpected token .* in JSON|is not valid JSON|Unexpected end of JSON input/,
+  // a process exit report: "claude exited 3 before result: …"
+  /^\S+ exited (?:with code )?-?\d+\b/,
   // a bare machine slug: "rate_limited", "invalid_request_error"
   /^[a-z]+(?:_[a-z0-9]+)+$/,
 ];

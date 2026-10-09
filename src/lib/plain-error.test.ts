@@ -20,6 +20,7 @@ describe("plainErrorLine", () => {
     ["read ECONNRESET", "The connection dropped. Try again."],
     ["TypeError: Cannot read properties of undefined (reading 'id')", "Something went wrong. Try again."],
     ["Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON", "Something went wrong. Try again."],
+    ["claude exited 3 before result: fake-claude: simulated crash before result", "Something went wrong. Try again."],
     ["rate_limited", "Too many requests right now. Wait a moment, then try again."],
     ["Error\n    at fetchBots (store.tsx:12:3)", "Something went wrong. Try again."],
   ])("reads %j as a plain line", (raw, line) => {
