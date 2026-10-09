@@ -17,6 +17,7 @@ import { homedir } from "node:os";
 import { codexConfigMcpServerNames, mountedMcpServerName } from "./codex-mcp-names.ts";
 
 import { DATA_DIR, stripWorkspaceCredentialEnv } from "../config.ts";
+import { laterStartup, openStartupModelCatalog, writeStartupModelCache } from "../startup-model-catalog.ts";
 import { hostedWorkspaceConfigured } from "../enterprise.ts";
 import { cloudHomeConfigured } from "../cloud-home.ts";
 import { serverVersion } from "../environment.ts";
@@ -33,6 +34,7 @@ import type {
   RuntimeEvent,
   RuntimeEventListener,
   SendTurnInput,
+  StdioMcpSpec,
   SteerOutcome,
 } from "../contracts.ts";
 import { newEventId, newId } from "../contracts.ts";
@@ -216,8 +218,9 @@ export function managedCodexArgs(config: NonNullable<CodexConfig["managed"]>): s
 }
 
 /** Names of variable families mounts write, excluded by one pattern each:
- * gate and proxy private records, and URL servers' header values. */
-const PRIVATE_ENV_FAMILIES = ["OMB_GATE_CONFIG_", "OMB_REMOTE_MCP_CONFIG_", "OMB_MCP_HEADER_"];
+ * gate and remote-proxy private records (a URL server's address and header
+ * values live in the latter). */
+const PRIVATE_ENV_FAMILIES = ["OMB_GATE_CONFIG_", "OMB_REMOTE_MCP_CONFIG_"];
 /** The remote proxy's settings that are not secret (mcp-gate-config.ts). */
 const PROXY_LITERAL_ENV = ["NODE_USE_ENV_PROXY", "NO_PROXY", "no_proxy"];
 /** Variables a shell cannot work without: never excluded, whoever set them. */
@@ -226,19 +229,12 @@ const SHELL_ESSENTIALS = new Set(["PATH", "HOME", "USER", "LOGNAME", "SHELL", "T
 const DENY_TIMEOUT_NOTE =
   "OpenMausBot: nobody answered this permission request in time. Skip this action and finish what you can without it.";
 
-const skippedSseServers = new Set<string>();
 const renamedMcpServers = new Set<string>();
 /** Logged once per name: the rename is deliberate, not a lost server. */
 function noteRenamedMcpServer(name: string, mountName: string): void {
   if (renamedMcpServers.has(name)) return;
   renamedMcpServers.add(name);
   console.error(`codex: MCP server ${JSON.stringify(name)} is also declared in Codex's own config.toml — mounted as ${JSON.stringify(mountName)} for this bot so the two do not merge`);
-}
-
-function noteSkippedSseServer(name: string): void {
-  if (skippedSseServers.has(name)) return;
-  skippedSseServers.add(name);
-  console.error(`codex: MCP server ${JSON.stringify(name)} uses the SSE transport, which codex does not speak — it is available to Claude bots only`);
 }
 
 /** A TOML inline table for a `-c key=value` override; JSON string quoting
@@ -612,11 +608,13 @@ export function codexNativeIncomingLogMessage(
   return message;
 }
 
+/** Every mount is a command Codex starts: URL servers arrive here already
+ * behind OpenMausBot's remote proxy (see scopedServer in sendTurn). */
 function mountMcpServer(
   appServerArgs: string[],
   env: Record<string, string | undefined>,
   name: string,
-  server: McpServerSpec,
+  server: StdioMcpSpec,
   preApproved = true,
   /** Settings that are not secret, written into the mount's own `env`
    * table: its process gets them, the shell Codex runs commands in does not. */
@@ -625,44 +623,16 @@ function mountMcpServer(
   written: Set<string> = new Set(),
 ): void {
   const prefix = `mcp_servers.${name}`;
-  if ("url" in server) {
-    // A remote server: codex connects itself. Header values are credentials
-    // (Authorization: Bearer …) and travel like env values — the child env
-    // holds them under harness-generated names, argv names only the variables.
-    // A bearer token goes through codex's own bearer setting, the path its
-    // remote servers are documented and exercised with; any other header
-    // rides env_http_headers.
-    appServerArgs.push("-c", `${prefix}.url=${JSON.stringify(server.url)}`);
-    const stem = `OMB_MCP_HEADER_${name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
-    const variables: Record<string, string> = {};
-    Object.entries(server.headers).forEach(([header, value], index) => {
-      const bearer = header.toLowerCase() === "authorization" ? /^Bearer\s+(\S+)$/i.exec(value) : null;
-      if (bearer) {
-        env[`${stem}_BEARER`] = bearer[1];
-        written.add(`${stem}_BEARER`);
-        appServerArgs.push("-c", `${prefix}.bearer_token_env_var=${JSON.stringify(`${stem}_BEARER`)}`);
-        return;
-      }
-      const variable = `${stem}_${index}`;
-      env[variable] = value;
-      written.add(variable);
-      variables[header] = variable;
-    });
-    if (Object.keys(variables).length) {
-      appServerArgs.push("-c", `${prefix}.env_http_headers=${tomlInlineTable(variables)}`);
-    }
-  } else {
-    Object.assign(env, server.env);
-    for (const name of Object.keys(server.env)) written.add(name);
-    appServerArgs.push(
-      "-c", `${prefix}.command=${JSON.stringify(server.command)}`,
-      "-c", `${prefix}.args=${JSON.stringify(server.args)}`,
-      // Values stay in the child environment; argv contains names only so
-      // credentials never appear in process listings or diagnostics.
-      "-c", `${prefix}.env_vars=${JSON.stringify(Object.keys(server.env))}`,
-    );
-    if (Object.keys(literalEnv).length) appServerArgs.push("-c", `${prefix}.env=${tomlInlineTable(literalEnv)}`);
-  }
+  Object.assign(env, server.env);
+  for (const name of Object.keys(server.env)) written.add(name);
+  appServerArgs.push(
+    "-c", `${prefix}.command=${JSON.stringify(server.command)}`,
+    "-c", `${prefix}.args=${JSON.stringify(server.args)}`,
+    // Values stay in the child environment; argv contains names only so
+    // credentials never appear in process listings or diagnostics.
+    "-c", `${prefix}.env_vars=${JSON.stringify(Object.keys(server.env))}`,
+  );
+  if (Object.keys(literalEnv).length) appServerArgs.push("-c", `${prefix}.env=${tomlInlineTable(literalEnv)}`);
   // Harness-owned servers are pre-quieted; a user-configured server keeps
   // codex's on-request policy so its tool calls become approval cards.
   if (preApproved) {
@@ -719,28 +689,50 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     let disposed = false;
     let planWarning: string | undefined;
     let models = plan ? { default: "", options: [] } : config.managed ? { default: config.managed.models[0], options: config.managed.models.map(id => ({ id, label: id })) } : STATIC_CODEX_MODELS;
-    const refreshModels = async () => {
+    const refreshModels = async (preserveExisting = false) => {
       if (config.managed) return;
       if (planAuth) {
         const generation = planGeneration;
-        models = { default: "", options: [] };
-        if (!planUnavailable && !planSigningOut && !disposed) {
-          const catalog = await planAuth.models();
-          if (generation === planGeneration && !planSigningOut && !disposed) models = catalog;
+        const kept = preserveExisting && models.options.length > 0 ? models : null;
+        if (!kept) models = { default: "", options: [] };
+        try {
+          if (!planUnavailable && !planSigningOut && !disposed) {
+            const catalog = await planAuth.models();
+            if (generation === planGeneration && !planSigningOut && !disposed && (!kept || catalog.options.length)) models = catalog;
+          }
+        } catch (error) {
+          // A deferred refresh keeps the list already being served. An
+          // explicit refresh still clears first and reports the error.
+          if (!kept) throw error;
         }
-        return;
+      } else {
+        try {
+          const resolved = await readCodexModelCatalog(catalogEnv, fetch, config.cli);
+          if (resolved.options.length) models = resolved;
+        } catch {
+          // Keep the last usable catalog when a local provider is down.
+        }
       }
-      try {
-        const resolved = await readCodexModelCatalog(catalogEnv, fetch, config.cli);
-        if (resolved.options.length) models = resolved;
-      } catch {
-        // Keep the last usable catalog when a local provider is down.
-      }
+      try { writeStartupModelCache(instanceId, models); } catch { /* derived cache */ }
     };
     // A revoked grant or a temporary catalog outage must leave the account
     // reachable in Settings for reconnect; it must not become a shadow.
-    if (planAuth) { try { await refreshModels(); } catch { /* Explicit refresh reports the error. */ } }
-    else await refreshModels();
+    // A later start serves the saved list and refreshes behind listen.
+    let startupModelRefresh: Promise<void> | null = null;
+    if (config.managed) {
+      await refreshModels();
+    } else {
+      startupModelRefresh = (await openStartupModelCatalog({
+        instanceId,
+        use: (catalog) => { models = catalog; },
+        current: () => models,
+        refresh: async () => {
+          if (planAuth) {
+            try { await refreshModels(laterStartup()); } catch { /* Explicit refresh reports the error. */ }
+          } else await refreshModels();
+        },
+      }))?.pending ?? null;
+    }
     // Codex's own ChatGPT login (not ChatGPT plan, whose tokens OpenMausBot
     // holds, nor Company routing) can be refused by OpenAI while `codex login
     // status` still reports it. A refusal marks it the way a rejected API key
@@ -796,6 +788,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     });
 
     const sendTurn = async (turn: SendTurnInput) => {
+      if (startupModelRefresh) await startupModelRefresh;
       turn = { ...turn, toolScope: assertToolScopeSupported(DRIVER_KIND, turn.toolScope) };
       const generation = planGeneration;
       const assertPlanCurrent = () => {
@@ -878,23 +871,35 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         // every name the mounts write.
         const baseEnv = new Map(Object.entries(env).filter(([, value]) => value !== undefined));
         const mountedNames = new Set<string>();
-        const selectedMcp = new Map<string, McpServerSpec>();
+        const selectedMcp = new Map<string, StdioMcpSpec>();
         const selectedApprovals = new Map<string, boolean>();
         /** Mounts whose big catalog is searched (plan turns' URL servers). */
         const directoryMounts = new Set<string>();
         /** Each mount's settings that are not secret (mountMcpServer's literalEnv). */
         const literalEnvs = new Map<string, Record<string, string>>();
-        const scopedServer = (name: string, mountName: string, server: McpServerSpec): McpServerSpec | null => {
+        const scopedServer = (name: string, mountName: string, server: McpServerSpec): StdioMcpSpec | null => {
           if (!canUseMcpServer(turn.toolScope, name)) return null;
+          // Every URL server is reached through OpenMausBot's remote proxy,
+          // on every Codex login, never by Codex's own MCP client: the proxy
+          // opens the connection with the same minimal handshake as Settings
+          // → Test (mcp-http.ts). Codex's own client adds capability fields
+          // (codex-cli 0.160.1 sends elicitation.form/url; rmcp 3.2's form
+          // capability can carry schemaValidation) that a strict server
+          // refuses: a Voluum server answered "Unrecognized field
+          // 'schemaValidation'", Codex started the thread without its tools,
+          // and every call came back "Tool not found" while Settings → Test
+          // listed 100+ tools. The proxy also speaks SSE, which Codex does not.
           // A plan turn has no tool_search (chatgptPlanCodexArgs): its URL
-          // servers are searched through the remote proxy, not mounted whole.
+          // servers are also searched through the proxy's tool directory.
+          // Own-login and Company turns keep Codex's hosted tool_search, so
+          // their catalog passes through whole.
           const directory = plan && "url" in server;
-          if (turn.toolScope === undefined && !directory) return server;
+          if (turn.toolScope === undefined && !("url" in server)) return server;
           const hash = createHash("sha256").update(mountName).digest("hex");
           // A proxy's network settings come from the environment Codex runs
           // with: Codex itself starts MCP children with only a few names.
           const proxy = turn.toolScope === undefined
-            ? mcpStdioServer(server, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, directory: { name }, configEnvName: `OMB_REMOTE_MCP_CONFIG_${hash}`, sourceEnv: env })
+            ? mcpStdioServer(server, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, ...(directory ? { directory: { name } } : {}), configEnvName: `OMB_REMOTE_MCP_CONFIG_${hash}`, sourceEnv: env })
             : gateServer({ name, server, threadId, budget: 0, toolScope: turn.toolScope, nodeEnv: { ELECTRON_RUN_AS_NODE: "1" },
               configEnvName: `OMB_GATE_CONFIG_${hash}`, directory, sourceEnv: env });
           if (proxy && directory) directoryMounts.add(mountName);
@@ -942,14 +947,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           for (const name of declaredInCodexConfig) appServerArgs.push("-c", `mcp_servers.${name}.enabled=false`);
         }
         for (const [name, server] of Object.entries(turn.integrations?.custom ?? {})) {
-          // codex speaks streamable HTTP to a remote server, not the older
-          // SSE transport: such an entry still reaches Claude bots, and is
-          // left out here rather than mounted as something it is not. (Plan
-          // turns reach every URL server through the proxy, which speaks both.)
-          if (turn.toolScope === undefined && !plan && "url" in server && server.type === "sse") {
-            noteSkippedSseServer(name);
-            continue;
-          }
           const mountName = mountedMcpServerName(name, declaredInCodexConfig);
           if (mountName !== name) noteRenamedMcpServer(name, mountName);
           mountSelected(name, mountName, server, false);
@@ -974,9 +971,10 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         // Codex hands its MCP children their variables from the one
         // environment it also runs shell commands in. Every variable a mount
         // writes there (a command server's token, a harness mount's
-        // capability, a URL server's header value, a gate's or proxy's
-        // private record) is excluded from that shell below, and shell
-        // snapshots, which can restore what the policy removed, are off.
+        // capability, a gate's or remote proxy's private record, which holds
+        // a URL server's header values) is excluded from that shell below,
+        // and shell snapshots, which can restore what the policy removed,
+        // are off.
         // Not excluded: a value the environment already held that a mount
         // passes along unchanged (the person's proxy settings), and the few
         // variables no shell works without. ELECTRON_RUN_AS_NODE is never the
@@ -996,9 +994,9 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         if (privateEnv.length && turn.toolScope === undefined) appServerArgs.push("-c", "features.shell_snapshot=false");
 
         const selectionConfig: { config?: Record<string, unknown> } = turn.toolScope === undefined ? {} : { config: { mcp_servers: Object.fromEntries(
-          [...selectedMcp].map(([name, server]) => [name, "command" in server ? {
+          [...selectedMcp].map(([name, server]) => [name, {
             command: server.command, args: server.args, env_vars: Object.keys(server.env), env: {}, default_tools_approval_mode: selectedApprovals.get(name) ? "auto" : "prompt",
-          } : {}]),
+          }]),
         ) } };
 
         const commandCwd = permissionLaunchCwd(turn.cwd ?? homedir());
@@ -1819,7 +1817,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
             if (entry && typeof entry === "object" && (entry as { enabled?: unknown }).enabled === false) continue;
             const expected = selectedMcp.get(name);
             const actual = entry as { command?: unknown; args?: unknown; env_vars?: unknown; env?: unknown; default_tools_approval_mode?: unknown; tools?: unknown } | null;
-            if (!expected || !("command" in expected) || actual?.command !== expected.command
+            if (!expected || actual?.command !== expected.command
               || JSON.stringify(actual?.args ?? []) !== JSON.stringify(expected.args ?? [])
               || !Array.isArray(actual?.env_vars) || JSON.stringify([...actual.env_vars].sort()) !== JSON.stringify(Object.keys(expected.env).sort())
               || actual.default_tools_approval_mode !== (selectedApprovals.get(name) ? "auto" : "prompt")
@@ -2101,6 +2099,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       return models;
     },
     refreshModels,
+    ...(startupModelRefresh ? { startupModelRefresh } : {}),
     ...(plan ? { authenticationMethod: "browser-pkce" as const } : {}),
     startAuthentication: async () => {
       if (planUnavailable) throw new Error(planUnavailable);
