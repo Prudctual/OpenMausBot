@@ -25787,14 +25787,11 @@ const gracefulShutdown = createGracefulShutdown({
     // Streamed text still merging, and any canonical lines queued after the
     // cleanup flush, reach disk before exit. A stuck append cannot hold the
     // process: the cleanup deadline already elapsed, so this wait is short.
-    const timer = setTimeout(() => finish(code), 1_000);
-    timer.unref?.();
-    void bus.flush().then(() => {
-      clearTimeout(timer);
+    void bus.flushWithin(1_000).then((done) => {
+      if (!done) console.error("bus: the canonical event log was still writing at exit; the newest thread history may be incomplete.");
       finish(code);
     }, (error: unknown) => {
-      console.error("bus: canonical event log flush failed", error);
-      clearTimeout(timer);
+      console.error("bus: canonical event log flush failed; the newest thread history may be incomplete.", error);
       finish(code);
     });
   },

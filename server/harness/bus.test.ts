@@ -232,6 +232,54 @@ describe("EventBus", () => {
     expect(kept).not.toContain("e256");
   });
 
+  it("keeps publication order in the log when a listener publishes from inside delivery", async () => {
+    const writes: string[] = [];
+    const bus = new EventBus((_path: string, data: string) => { writes.push(data); });
+    const seen: string[] = [];
+    bus.subscribe((event) => {
+      seen.push(event.eventId);
+      if (event.eventId === "a") bus.publish(testEvent({ eventId: "nested", type: "runtime.notice", message: "from a listener" } as Partial<RuntimeEvent>));
+    });
+    bus.publish(testEvent({ eventId: "a" }));
+    bus.publish(testEvent({ eventId: "b" }));
+    await bus.flush();
+
+    const ids = writes.flatMap((chunk) => chunk.trim().split("\n").map((line) => JSON.parse(line).eventId as string));
+    expect(ids).toEqual(["a", "nested", "b"]);
+    expect(seen).toEqual(["a", "nested", "b"]);
+  });
+
+  it("never drops a turn's end when the log buffer is full, and marks the gap right before it", async () => {
+    const writes: string[] = [];
+    const bus = new EventBus((_path: string, data: string) => { writes.push(data); });
+    for (let i = 0; i < 260; i++) bus.publish(testEvent({ eventId: `e${i}` }));
+    bus.publish(testEvent({ eventId: "done", type: "turn.completed", ok: true } as Partial<RuntimeEvent>));
+    // Another thread's end, with nothing of its own lost, lands unmarked.
+    bus.publish(testEvent({ eventId: "other-done", threadId: "thread-2", type: "turn.completed", ok: true } as Partial<RuntimeEvent>));
+    bus.publish(testEvent({ eventId: "error-end", threadId: "thread-3", type: "runtime.error", message: "boom", terminal: true } as Partial<RuntimeEvent>));
+    await bus.flush();
+
+    const lines = writes.flatMap((chunk) => chunk.trim().split("\n").map((line) => JSON.parse(line) as { eventId: string; threadId: string; type: string; message?: string }));
+    const first = lines.filter((line) => line.threadId === "thread-1");
+    expect(first.slice(0, 256).map((line) => line.eventId)).toEqual(Array.from({ length: 256 }, (_, i) => `e${i}`));
+    expect(first.slice(256).map((line) => line.type)).toEqual(["runtime.error", "turn.completed"]);
+    expect(first.at(-1)!.eventId).toBe("done");
+    expect(lines.filter((line) => line.threadId === "thread-2").map((line) => line.eventId)).toEqual(["other-done"]);
+    expect(lines.filter((line) => line.threadId === "thread-3").map((line) => line.eventId)).toEqual(["error-end"]);
+  });
+
+  it("bounds the shutdown flush and says when the log did not finish", async () => {
+    const stuck = new EventBus(() => new Promise<void>(() => {}));
+    stuck.publish(testEvent({ eventId: "never" }));
+    await expect(stuck.flushWithin(20)).resolves.toBe(false);
+
+    const writes: string[] = [];
+    const healthy = new EventBus((_path: string, data: string) => { writes.push(data); });
+    healthy.publish(testEvent({ eventId: "landed" }));
+    await expect(healthy.flushWithin(1_000)).resolves.toBe(true);
+    expect(writes.join("")).toContain('"eventId":"landed"');
+  });
+
   it("flushes queued lines when an instance detaches", async () => {
     const bus = new EventBus();
     bus.publish(testEvent({ threadId: "detach-me", eventId: "d1" }));

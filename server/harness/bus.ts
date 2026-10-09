@@ -127,6 +127,22 @@ export class EventBus {
     return this.flushDisk();
   }
 
+  /** flush(), bounded for shutdown. Resolves false when the log has not
+   * accepted every queued line within `ms`: the caller exits anyway and
+   * says the history may be incomplete. */
+  async flushWithin(ms: number): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<false>((resolve) => {
+      // Not unref'd: the caller is waiting on this answer before it exits.
+      timer = setTimeout(() => resolve(false), ms);
+    });
+    try {
+      return await Promise.race([this.flush().then(() => true as const), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private flushThread(threadId: string) {
     const pending = this.pendingText.get(threadId);
     if (!pending) return;
@@ -137,10 +153,12 @@ export class EventBus {
   }
 
   private write(event: RuntimeEvent) {
-    // Listeners see the event before disk so a slow append never stalls the
-    // turn. The canonical line is queued and written in publish order.
-    this.deliver(event);
+    // Queue the canonical line first, then deliver. Queueing is synchronous
+    // and the append runs later, so a slow disk never stalls the turn, and a
+    // listener that publishes from inside delivery queues its event after
+    // this one: the log keeps publication order.
     this.enqueue(event);
+    this.deliver(event);
     if (isTerminalEvent(event)) void this.flushDisk();
   }
 
@@ -148,6 +166,19 @@ export class EventBus {
     const bytes = Buffer.byteLength(JSON.stringify(redactSecrets(event)));
     const overCount = this.queued.length >= MAX_QUEUED_EVENTS;
     const overBytes = this.queued.length > 0 && this.queuedBytes + bytes > MAX_QUEUED_BYTES;
+    if ((overCount || overBytes) && isTerminalEvent(event)) {
+      // A turn's end is never dropped: the log and anything that replays it
+      // would otherwise show a turn that never finished. If this thread lost
+      // lines to the full queue, its marker goes in right before the end.
+      if (this.pendingLogWarnings.has(event.threadId) && this.warningPlacement.get(event.threadId) === "after") {
+        const warning = this.pendingLogWarnings.get(event.threadId)!;
+        this.pendingLogWarnings.delete(event.threadId);
+        this.warningPlacement.delete(event.threadId);
+        this.push(warning);
+      }
+      this.push(event);
+      return;
+    }
     if (overCount || overBytes) {
       // Accepted lines for this thread stay in front of the marker. A thread
       // with nothing queued yet records the marker in front of whatever
@@ -158,6 +189,10 @@ export class EventBus {
       this.noteDiskFailure(event, new Error("canonical event log queue is full"), placement);
       return;
     }
+    this.push(event, bytes);
+  }
+
+  private push(event: RuntimeEvent, bytes = Buffer.byteLength(JSON.stringify(redactSecrets(event)))) {
     this.queued.push({ event, bytes });
     this.queuedBytes += bytes;
     this.kick();
