@@ -70,10 +70,25 @@ describe("room message actions", () => {
     const html = markup([text("a", "bot", "The build is green")]);
     expect(html).toContain('data-testid="message-actions"');
     expect(html).toContain("Copy message");
-    expect(html).toContain("Show raw markdown");
-    expect(html).toContain("Add an ElevenLabs key");
     expect(html).toContain("Reply to message");
-    expect(html).toContain("Pin message");
+    expect(html).toContain('aria-haspopup="menu"');
+    // the rest waits in the more menu, as in a 1:1 chat
+    expect(html).not.toContain("Show raw markdown");
+    expect(html).not.toContain("Pin message");
+  });
+
+  it("puts read aloud, raw markdown and pin in a room reply's more menu", () => {
+    vi.unstubAllGlobals();
+    const messages = [text("a", "bot", "The build is green")];
+    flushSync(() => root.render(createElement(Transcript, {
+      group: { ...room, messages }, members: [lead], locale: "en", messages, transcript: messages, onReply: () => {},
+    })));
+    flushSync(() => host.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')!.click());
+    const items = [...host.querySelectorAll<HTMLButtonElement>("[role=menuitem]")];
+    expect(items.map((item) => item.textContent)).toEqual(expect.arrayContaining(["Read this aloud", "Show raw markdown", "Pin message", "Copy message ID"]));
+    const speak = items.find((item) => item.textContent === "Read this aloud");
+    expect(speak?.title).toBe("Add an ElevenLabs key in an agent profile to read messages aloud");
+    expect(speak?.disabled).toBe(true);
   });
 
   it("copies a person's message and folds a long one", () => {
