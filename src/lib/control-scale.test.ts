@@ -49,9 +49,9 @@ describe("control scale", () => {
   it("is what the digest chip and inline code render with", () => {
     const message: Message = {
       id: "digest", role: "bot", kind: "digest", at: 1,
-      digest: { turnId: "t", botId: "b", threadId: "th", at: 1, durationMs: 1, tools: [{ name: "Read", count: 2 }],
+      digest: { turnId: "t", botId: "b", threadId: "th", at: 1, durationMs: 1, tools: [{ name: "Read", count: 2, failed: 0 }],
         files: { changed: [], added: [], deleted: [] }, memory: [], reply: "", hookCoverage: "preview" },
-    } as Message;
+    };
     expect(renderToStaticMarkup(createElement(DigestChip, { message }))).toMatch(/class="ui-chip /);
     const html = renderToStaticMarkup(createElement(ChatMarkdown, { text: "run `pnpm test` now" }));
     expect(html).toContain('class="ui-code-chip break-words [unicode-bidi:isolate]"');
