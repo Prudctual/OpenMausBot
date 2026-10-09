@@ -5,6 +5,7 @@
 // the sidebar preview both ask signedOutEngine, so they never disagree.
 import { offersSignIn } from "@/components/EngineSetup";
 import { t } from "@/lib/i18n";
+import { plainErrorLine } from "@/lib/plain-error";
 import type { Bot, InstanceInfo, Message } from "@/state/store";
 import { failedTurnCause } from "../../shared/failed-turn";
 
@@ -40,5 +41,5 @@ export function activityPreview(tool: ActivityTool, engine: InstanceInfo | undef
   const cause = failedTurnCause(tool.name);
   if (cause === null) return tool.name;
   const signedOut = signedOutEngine(tool, engine);
-  return signedOut ? t("sidebar.preview.signedOut", { name: signedOut.displayName }) : cause;
+  return signedOut ? t("sidebar.preview.signedOut", { name: signedOut.displayName }) : plainErrorLine(cause) ?? cause;
 }

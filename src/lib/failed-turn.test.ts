@@ -63,6 +63,11 @@ describe("failed turn text", () => {
     expect(activityPreview({ name: "Bash", ok: true }, engine())).toBe("Bash");
   });
 
+  it("previews a technical cause as its plain line", () => {
+    expect(activityPreview({ name: 'error: API Error: 529 {"type":"error","error":{"type":"overloaded_error"}}', ok: false }, engine()))
+      .toBe("The service is busy right now. Try again in a moment.");
+  });
+
   it("finds the engine a bot's turns ran on", () => {
     const claude = engine();
     const bot = { modelSelection: { instanceId: "claude", model: "sonnet" } } as Bot;
