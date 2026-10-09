@@ -293,12 +293,13 @@ export function SidebarPopoverMenu({
     };
   }, [anchored, motion.shown, submenu, items.length]);
 
-  // A keyboard open lands on the first item.
+  // A keyboard open lands on the first item, once the anchored sheet is
+  // placed (a hidden sheet cannot take focus).
   useEffect(() => {
-    if (!open || !focusFirst.current) return;
+    if (!open || !focusFirst.current || (anchored && !position)) return;
     focusFirst.current = false;
     menuItems(menuRef.current)[0]?.focus();
-  }, [open, position]);
+  }, [open, anchored, position]);
 
   const openSub = (item: SidebarMenuItem, row: HTMLElement, focus = false) => {
     if (subTimer.current) clearTimeout(subTimer.current);
