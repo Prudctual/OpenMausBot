@@ -83,12 +83,15 @@ describe("room handoff saves", () => {
       seenAtStart.push(statusOnDisk(node.id)!.status);
       return new Promise<{ ok: boolean; text: string }>(resolve => { settle = resolve; });
     });
-    const hooks: RoomHandoffHooks = { validate: () => undefined, busy: () => false, run, report: vi.fn(), changed: () => {} };
+    const changed = vi.fn();
+    const validate = vi.fn<RoomHandoffHooks["validate"]>(() => undefined);
+    const report = vi.fn();
+    const hooks: RoomHandoffHooks = { validate, busy: () => false, run, report, changed };
     const handoffs = new RoomHandoffs(file, hooks);
     const source = { botId: "chief", threadId: "chief" };
     const { node } = handoffs.enqueue(source, "turn", undefined, { botId: "a", threadId: "a" }, "a", "A");
     handoffs.sourceSettled("turn", true);
-    return { file, handoffs, node, run, seenAtStart, statusOnDisk, settle: (value: { ok: boolean; text: string }) => settle!(value) };
+    return { file, handoffs, node, run, changed, validate, report, seenAtStart, statusOnDisk, settle: (value: { ok: boolean; text: string }) => settle!(value) };
   }
   const failNextWrite = () => vi.mocked(spied.fsyncSync).mockImplementationOnce(() => { throw new Error("disk full"); });
 
@@ -119,8 +122,9 @@ describe("room handoff saves", () => {
   });
 
   it("keeps a settlement whose write failed and saves it on the next tick", async () => {
-    const { handoffs, node, settle, statusOnDisk } = failing();
+    const { handoffs, node, settle, statusOnDisk, changed } = failing();
     handoffs.tick();
+    changed.mockClear();
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       failNextWrite();
@@ -128,11 +132,40 @@ describe("room handoff saves", () => {
       await flush();
       expect(handoffs.nodes.get(node.id)?.status).toBe("completed");
       expect(statusOnDisk(node.id)?.status).toBe("running");
+      expect(changed).not.toHaveBeenCalled();
       expect(errors).toHaveBeenCalledWith("room handoffs:", expect.objectContaining({ message: "disk full" }));
     } finally {
       errors.mockRestore();
     }
     handoffs.tick();
     expect(statusOnDisk(node.id)?.status).toBe("completed");
+    expect(changed).toHaveBeenCalledWith(new Set(), new Set(["a", "chief"]));
+  });
+
+  it("retains a failed tick's dirty state and notices even when the next tick changes nothing", () => {
+    const { handoffs, node, validate, statusOnDisk, changed } = failing();
+    // No report or runnable work on the retry: persistence must not depend on
+    // some unrelated future mutation accidentally saving this cancellation.
+    node.reported = true;
+    validate.mockReturnValue("Access revoked");
+    changed.mockClear();
+    failNextWrite();
+    expect(() => handoffs.tick()).toThrow("disk full");
+    expect(statusOnDisk(node.id)?.status).toBe("queued");
+    expect(changed).not.toHaveBeenCalled();
+    handoffs.tick();
+    expect(statusOnDisk(node.id)?.status).toBe("failed");
+    expect(changed).toHaveBeenCalledWith(new Set(), new Set(["a", "chief"]));
+  });
+
+  it("does not report a cancellation until its terminal state reaches disk", () => {
+    const { handoffs, node, validate, report, statusOnDisk } = failing();
+    validate.mockReturnValue("Access revoked");
+    report.mockImplementation(() => expect(statusOnDisk(node.id)?.status).toBe("failed"));
+    failNextWrite();
+    expect(() => handoffs.tick()).toThrow("disk full");
+    expect(report).not.toHaveBeenCalled();
+    handoffs.tick();
+    expect(report).toHaveBeenCalledTimes(1);
   });
 });

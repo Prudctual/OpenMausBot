@@ -117,10 +117,6 @@ export class RoomHandoffs {
     this.settleScheduled = true;
     queueMicrotask(() => {
       this.settleScheduled = false;
-      const groups = new Set(this.settleGroups);
-      const threads = new Set(this.settleThreads);
-      this.settleGroups.clear();
-      this.settleThreads.clear();
       if (this.settleDirty) {
         try {
           this.save();
@@ -128,8 +124,13 @@ export class RoomHandoffs {
         } catch (error) {
           // The next tick writes the same map. A throw here would be uncaught.
           console.error("room handoffs:", error);
+          return;
         }
       }
+      const groups = new Set(this.settleGroups);
+      const threads = new Set(this.settleThreads);
+      this.settleGroups.clear();
+      this.settleThreads.clear();
       this.emit(groups, threads);
     });
   }
@@ -145,11 +146,20 @@ export class RoomHandoffs {
     const batch = this.batch;
     this.batch = null;
     if (!batch) return;
-    if (batch.dirty || this.settleDirty) {
+    // Keep failed tick writes in the same retry ledger as settlements. Do not
+    // leave a batch open: user accepts/stops must still save immediately.
+    for (const id of batch.groups) this.settleGroups.add(id);
+    for (const id of batch.threads) this.settleThreads.add(id);
+    this.settleDirty ||= batch.dirty;
+    if (this.settleDirty) {
       this.save();
       this.settleDirty = false;
     }
-    this.emit(batch.groups, batch.threads);
+    const groups = new Set(this.settleGroups);
+    const threads = new Set(this.settleThreads);
+    this.settleGroups.clear();
+    this.settleThreads.clear();
+    this.emit(groups, threads);
   }
   children(id: string) { return [...this.nodes.values()].filter(n => n.parentId === id); }
   root(n: RoomHandoff) { return this.nodes.get(n.rootId)!; }
@@ -481,6 +491,7 @@ export class RoomHandoffs {
     for (const n of this.nodes.values()) {
       const parent = n.parentId ? this.nodes.get(n.parentId) : undefined;
       if (terminal(n) && parent && !n.reported) {
+        this.saveBatch();
         this.hooks.report(n, parent); n.reported = true; this.publish(n, parent);
       }
       if (n.status === "waiting") {
