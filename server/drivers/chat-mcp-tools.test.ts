@@ -71,6 +71,26 @@ afterEach(async () => {
 });
 
 describe("Chat MCP session", () => {
+  it("keeps built-in agents grants across turn-token renewal, but scopes them to the server and configuration", async () => {
+    const f = fixture();
+    const grant = async (token: string, extra: Record<string, string> = {}, builtIn = true) => {
+      const server = { ...f.server, env: { ...f.server.env, OMB_COMMS_TOKEN: token, ...extra } };
+      const session = await mountChatTools(builtIn ? { agents: server } : { custom: { agents: server } }, f.controller.signal, false);
+      sessions.push(session);
+      const key = session.view("agents_write", { value: "same operation" }).grant;
+      await session.close();
+      expect(key).toBeTruthy();
+      return key;
+    };
+    const first = await grant("fixture-turn-one");
+    expect(await grant("fixture-turn-two")).toBe(first);
+    expect(await grant("fixture-turn-two", { OMB_HARNESS_URL: "http://different.fixture" })).not.toBe(first);
+    expect(await grant("fixture-turn-two", { OMB_CHIEF_OF_STAFF: "1" })).not.toBe(first);
+    // A custom server cannot opt into the exception just by using the
+    // agents name or naming one of its settings OMB_COMMS_TOKEN.
+    expect(await grant("fixture-turn-two", {}, false)).not.toBe(await grant("fixture-turn-one", {}, false));
+  });
+
   it("starts no server when the owner selected no MCP tools", async () => {
     const f = fixture();
     const session = await f.mount(false, false, { allow: ["native:ask_user"] });

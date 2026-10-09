@@ -46,9 +46,15 @@ export interface ChatToolSession {
 type Server = { command: string; args: string[]; env: Record<string, string> };
 /** A stable digest of how a server is started. Kept in memory only, and
  * hashed so environment values are never held as text in a grant key. */
-function serverIdentity(name: string, server: Server): string {
-  const env = Object.fromEntries(Object.entries(server.env).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
-  return createHash("sha256").update(JSON.stringify([name, server.command, server.args, env])).digest("hex");
+function serverIdentity(name: string, server: Server, builtInAgents: boolean): string {
+  // This capability is freshly minted for every turn, not a change of
+  // account/server. The internal routes still validate the current token.
+  // Keep every other setting in the identity, and never grant this exception
+  // to a custom MCP server that happens to use the same name or variable.
+  const env = Object.fromEntries(Object.entries(server.env)
+    .filter(([key]) => !builtInAgents || key !== "OMB_COMMS_TOKEN")
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
+  return createHash("sha256").update(JSON.stringify([name, builtInAgents, server.command, server.args, env])).digest("hex");
 }
 /** A provider-safe tool name: the server's name and the tool's, joined. */
 function chatToolName(server: string, tool: string): string {
@@ -309,7 +315,7 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
       // A searched URL server answers over the internet: its initialize and
       // whole tools/list get the URL budget; command servers keep theirs.
       const tools = await client.tools(signal, include, searchable.has(name) ? REMOTE_MCP_STARTUP_MS : STARTUP_MS);
-      return { name, identity: serverIdentity(name, descriptor), client, builtInBrowser: descriptor === integrations?.browser, tools };
+      return { name, identity: serverIdentity(name, descriptor, name === "agents" && descriptor === integrations?.agents), client, builtInBrowser: descriptor === integrations?.browser, tools };
     }));
     for (const mount of mounts) {
       if (mount.status === "rejected") throw mount.reason;
