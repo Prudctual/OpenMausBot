@@ -3982,5 +3982,6 @@
   "data.explorer.topValues": "Top values",
   "data.explorer.distribution": "Distribution",
   "data.explorer.show": "Show the distribution of {column}",
-  "data.explorer.histogramFailed": "The distribution could not be loaded: {reason}"
+  "data.explorer.histogramFailed": "The distribution could not be loaded: {reason}",
+  "chat.reconnecting": "Reconnecting…"
 }
