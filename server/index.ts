@@ -2699,6 +2699,9 @@ const directTurnBots = new Map<string, BotRecord>();
  * books them next to its token usage: stable bytes ride the cacheable
  * prefix, volatile bytes are the part that legitimately changes. */
 const turnPromptBytes = new Map<string, { stable: number; volatile: number }>();
+/** The quick model a conversational turn was moved to (server/turn-route.ts),
+ * so usage is booked under the model that actually ran. */
+const routedTurnModels = new Map<string, string>();
 let providerFleetReloading = false;
 const turnResources = new TurnResources();
 const sharedComputerControl = new SharedComputerControl(turnResources, () => store.bots.some(bot => botComputerControlSnapshot(bot.id).held));
@@ -8330,13 +8333,15 @@ bus.subscribe((event: RuntimeEvent) => {
           ? `${measuredSelection.instanceId}:${measuredSelection.model}` : undefined });
         const promptBytes = turnPromptBytes.get(event.threadId);
         turnPromptBytes.delete(event.threadId);
+        const routedModel = routedTurnModels.get(event.threadId);
+        routedTurnModels.delete(event.threadId);
         bookTurnUsage({
           botId: bot.id,
           botName: bot.name,
           threadId: event.threadId,
           instanceId: selection.instanceId,
           driverKind: registry.get(selection.instanceId)?.driverKind ?? "unknown",
-          model: selection.model,
+          model: routedModel ?? selection.model,
           input: tokens?.input ?? 0,
           output: tokens?.output ?? 0,
           ...(typeof tokens?.cachedInput === "number" ? { cachedInput: tokens.cachedInput } : {}),
@@ -10013,6 +10018,8 @@ async function startTurn(
     effortLevels: instance.adapter.capabilities.effortLevels,
   });
   const { model, effort, variant } = route;
+  if (route.quickModel) routedTurnModels.set(threadId, model);
+  else routedTurnModels.delete(threadId);
   assertModelVariantSupported({ variant, effort }, instance.adapter.capabilities);
   // A selection can be persisted while its engine is offline. Re-check when
   // the engine returns so an old or unsupported value never reaches a CLI.
@@ -10047,6 +10054,10 @@ async function startTurn(
           ...(opts?.relayed ? { relayed: true } : {}),
           ...(route.quickModel ? { quickModel: route.quickModel } : {}),
         });
+  }
+  // a queued or edited message arrives already stored: stamp it here
+  if (route.quickModel && userMessage.quickModel !== route.quickModel && !opts?.cardContinuation) {
+    userMessage = store.patchMessage(threadId, userMessage.id, { quickModel: route.quickModel }) ?? userMessage;
   }
   const recoveryUserMessageId = opts?.coordination
     ? store.activePath(threadId).findLast(m => m.role === "user" && m.kind === "text")?.id
