@@ -231,6 +231,58 @@ describe("mcp-gate", () => {
     expect((await call("get_food_cart")).result).toEqual({ content: [{ type: "text", text: "ok" }] });
   });
 
+  it("saves a large pdf or audio result and names the file", async () => {
+    const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(25 * 1024, 7)]);
+    const audioBytes = Buffer.alloc(25 * 1024, 9);
+    start({
+      content: [
+        { type: "text", text: "here you go" },
+        { type: "resource", resource: { uri: "mem://doc", mimeType: "application/pdf", blob: pdfBytes.toString("base64") } },
+        { type: "audio", mimeType: "audio/mpeg", data: audioBytes.toString("base64") },
+      ],
+    });
+
+    const content = (await call("fetch_document")).result.content;
+    expect(content[0]).toEqual({ type: "text", text: "here you go" });
+    const spillDir = join(scratch, "spill");
+    const files = readdirSync(spillDir);
+    const pdfFile = files.find((name) => name.endsWith(".pdf"));
+    const audioFile = files.find((name) => name.endsWith(".mp3"));
+    expect(pdfFile).toBeTruthy();
+    expect(audioFile).toBeTruthy();
+    expect(content[1]).toEqual({
+      type: "text",
+      text: `Saved this application/pdf tool result (${pdfBytes.length.toLocaleString("en-US")} bytes) at ${JSON.stringify(join(spillDir, pdfFile!))}.`,
+    });
+    expect(content[2]).toEqual({
+      type: "text",
+      text: `Saved this audio/mpeg tool result (${audioBytes.length.toLocaleString("en-US")} bytes) at ${JSON.stringify(join(spillDir, audioFile!))}.`,
+    });
+    expect(readFileSync(join(spillDir, pdfFile!)).equals(pdfBytes)).toBe(true);
+    expect(readFileSync(join(spillDir, audioFile!)).equals(audioBytes)).toBe(true);
+  });
+
+  it("leaves a small audio clip, an image, and unreadable base64 inline", async () => {
+    const result = {
+      content: [
+        { type: "audio", mimeType: "audio/wav", data: Buffer.from("hi").toString("base64") },
+        { type: "image", mimeType: "image/png", data: Buffer.alloc(25 * 1024, 1).toString("base64") },
+        { type: "resource", resource: { uri: "mem://shot", mimeType: "image/png", blob: Buffer.alloc(25 * 1024, 2).toString("base64") } },
+        { type: "resource", resource: { uri: "mem://bad", mimeType: "application/pdf", blob: "!".repeat(40_000) } },
+      ],
+    };
+    start(result);
+    expect((await call("show")).result).toEqual(result);
+    expect(existsSync(join(scratch, "spill"))).toBe(false);
+  });
+
+  it("passes a large binary through when the result budget is zero", async () => {
+    const result = { content: [{ type: "audio", mimeType: "audio/mpeg", data: Buffer.alloc(25 * 1024, 7).toString("base64") }] };
+    start(result, { OMB_GATE_BUDGET: "0" });
+    expect((await call("clip")).result).toEqual(result);
+    expect(existsSync(join(scratch, "spill"))).toBe(false);
+  });
+
   it("relays a result whole when it is a shape the trimmer cannot cut", async () => {
     // no content array at all: nothing to trim, and dropping it would lose the
     // tool's answer
