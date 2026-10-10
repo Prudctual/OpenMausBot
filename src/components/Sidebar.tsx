@@ -9,6 +9,7 @@ import {
   BellDot,
   Bot as BotIcon,
   Check,
+  CheckCheck,
   ChevronRight,
   ClipboardCopy,
   Copy,
@@ -17,6 +18,7 @@ import {
   FolderPlus,
   Library,
   Loader2,
+  MessageSquarePlus,
   MoreHorizontal,
   Pencil,
   PanelLeftClose,
@@ -56,13 +58,15 @@ import { nextRename } from "@/lib/rename";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { MIN_QUERY, SearchResults } from "./SearchResults";
 import { TeamLibraryPanel } from "./TeamLibraryPanel";
+import { SidebarNewChatPanel } from "./SidebarNewChatPanel";
+import { openCommandPalette } from "./CommandPalette";
 import { ShareTeamDialog } from "./ShareTeamDialog";
 import { TeamDialog } from "./TeamDialog";
 import { RenameTitle } from "./RenameTitle";
 import { BotPickerList } from "./BotPickerList";
 import { BotProjectDialog, FolderActions, FolderIcon, navigateThreadMenu } from "./BotProjects";
 import { draggedFolder, FOLDER_DRAG_TYPE, moveFolder, placeFolder } from "@/lib/folder-order";
-import { folderUnreadThreadIds, markFolderRead } from "@/lib/folder-read";
+import { botUnreadThreadIds, folderUnreadThreadIds, markBotRead, markFolderRead } from "@/lib/folder-read";
 import { orderedThreadList, SidebarThreadRow, stampClock, threadRecency, useRelativeNow, useSnoozeExpiry, visibleSidebarThreads } from "./SidebarThreadRow";
 import {
   loadCollapsedSections,
@@ -165,7 +169,7 @@ function preview(bot: Bot, visible: Message[], instances: InstanceInfo[]): strin
     return (last.card.requestId && last.card.tool && !last.card.questionRequest && approvalCardOutcome(last.card)) || last.card.title;
   }
   // a failed turn reads as the chat row says it, never "error: …"
-  if (last.kind === "activity" && last.tool) return activityPreview(last.tool, botEngine(bot, instances));
+  if (last.kind === "activity" && last.tool) return activityPreview(last.tool, botEngine(bot, instances), last.dataResult);
   if (last.kind === "screen") return t("sidebar.preview.screenFrame");
   if (last.kind === "connector" && last.connector) return sidebarConnectorPreview(last.connector, t);
   const peer = peerLine(last);
@@ -200,7 +204,7 @@ function groupPreview(group: Group, bots: Bot[], instances: InstanceInfo[]): str
     return last.from ? `${last.from.name}: ${stopped}` : stopped;
   }
   const text = last.kind === "activity" && last.tool
-    ? activityPreview(last.tool, botEngine(bots.find((bot) => bot.id === last.from?.botId), instances))
+    ? activityPreview(last.tool, botEngine(bots.find((bot) => bot.id === last.from?.botId), instances), last.dataResult)
     : last.kind === "goal.run" && last.goalRun
       ? sidebarGoalRunPreview(last.goalRun)
       : last.kind === "connector" && last.connector
@@ -772,6 +776,29 @@ export function BotContextMenu({
   const remoteClient = window.ogb?.remoteClient?.active === true;
   const bot = shown ? state.bots.find((b) => b.id === shown.botId) : undefined;
   const menuRef = useRef<HTMLDivElement>(null);
+  const latestMenu = useRef(menu);
+  useLayoutEffect(() => { latestMenu.current = menu; }, [menu]);
+  const readInFlight = useRef(false);
+  const [readingBotId, setReadingBotId] = useState<string | null>(null);
+  const [readError, setReadError] = useState<{ botId: string; message: string } | null>(null);
+  useEffect(() => { setReadError(null); }, [menu?.botId]);
+  const readAll = async (owner: Bot) => {
+    if (readInFlight.current) return;
+    readInFlight.current = true;
+    setReadingBotId(owner.id);
+    setReadError(null);
+    const openedMenu = menu;
+    try {
+      await markBotRead(owner, api, (updated) => dispatch({ type: "botPatched", bot: updated }));
+      if (latestMenu.current === openedMenu) onClose();
+    } catch (error) {
+      const guidance = t("sidebar.bot.markAllReadFailed");
+      setReadError({ botId: owner.id, message: error instanceof Error ? `${guidance} ${error.message}` : guidance });
+    } finally {
+      readInFlight.current = false;
+      setReadingBotId(null);
+    }
+  };
   useLayoutEffect(() => {
     const element = menuRef.current;
     if (!element || !shown) return;
@@ -826,7 +853,7 @@ export function BotContextMenu({
     icon: React.ReactNode,
     label: string,
     onClick?: () => void,
-    opts?: { danger?: boolean; disabled?: boolean; hint?: string },
+    opts?: { danger?: boolean; disabled?: boolean; hint?: string; keepOpen?: boolean },
   ) => (
     <button
       key={label}
@@ -835,7 +862,7 @@ export function BotContextMenu({
       disabled={opts?.disabled}
       onClick={() => {
         onClick?.();
-        onClose();
+        if (!opts?.keepOpen) onClose();
       }}
       title={opts?.hint}
       className={cn(
@@ -900,6 +927,12 @@ export function BotContextMenu({
         item(<BellDot size={16} className="text-ink-secondary" />, t("sidebar.bot.markUnread"), () =>
           dispatch({ type: "markUnread", botId: bot.id }),
         ),
+        item(
+          readingBotId === bot.id ? <Loader2 size={16} className="animate-spin text-ink-secondary" /> : <CheckCheck size={16} className="text-ink-secondary" />,
+          readingBotId === bot.id ? t("sidebar.bot.markingAllRead") : t("sidebar.bot.markAllRead"),
+          () => { void readAll(bot); },
+          { disabled: readingBotId !== null || botUnreadThreadIds(bot).length === 0, keepOpen: true },
+        ),
         divider("d1"),
         item(<Pencil size={16} className="text-ink-secondary" />, t("sidebar.bot.editProfile"), () => {
           dispatch({ type: "select", id: bot.id });
@@ -931,6 +964,7 @@ export function BotContextMenu({
           }}
         />,
       ]}
+      {readError?.botId === bot.id && <p role="alert" className="px-3.5 py-2 text-[12px] text-danger">{readError.message}</p>}
     </div>,
     document.body,
   );
@@ -1893,6 +1927,13 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   const { state, dispatch } = useStore();
   const now = useRelativeNow();
   const cloudOwner = useCloudOwner(state.config?.cloudHome === true);
+  // The Show me how tip ends when the server menu it points at closes,
+  // whatever was chosen (components/CloudHowTo.tsx); Add a Cloud… chosen
+  // there shows as the dialog opened from it (cloud_dialog_shown).
+  const endHowTo = useCallback(() => {
+    track("cloud_howto", { result: "closed" });
+    dispatch({ type: "cloudHowTo", open: false });
+  }, [dispatch]);
   const showThreads = useShowThreads();
   const remoteClient = window.ogb?.remoteClient?.active === true;
   const { capabilities } = useDesktopCapabilities();
@@ -1941,6 +1982,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     saveSidebarAttentionPinned(pinned);
   };
   const [newRoom, setNewRoom] = useState(false);
+  const [newChatOpen, setNewChatOpen] = useState(false);
   const [newFolderBotId, setNewFolderBotId] = useState<string | null>(null);
   const [teamLibraryOpen, setTeamLibraryOpen] = useState(false);
   const [teamInstallUrl, setTeamInstallUrl] = useState<string | null>(null);
@@ -2315,7 +2357,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
             {/* Gives way first when the row is tight; only the switcher's own
                 button opts out of the drag region. */}
             <div data-sidebar-top-switcher className="flex min-w-0 max-w-[140px] items-center">
-              <DesktopWorkspaceSwitcher inline cloudHome={state.config?.cloudHome === true} owner={cloudOwner} />
+              <DesktopWorkspaceSwitcher inline cloudHome={state.config?.cloudHome === true} owner={cloudOwner} howTo={state.cloudHowTo} onMenuClosed={endHowTo} />
             </div>
           </div>
         )}
@@ -2333,6 +2375,16 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
             title={density === "icons" ? t("sidebar.density.expand") : t("sidebar.density.collapse")}
           >
             {density === "icons" ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+          </button>}
+          {/* The rail hides the search box, so it gets the ⌘K switcher instead. */}
+          {density === "icons" && <button
+            type="button"
+            onClick={openCommandPalette}
+            aria-label={t("sidebar.searchAria")}
+            title={t("sidebar.searchAria")}
+            className="flex size-8 items-center justify-center rounded-md text-ink-secondary hover:bg-raised hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            <Search size={17} strokeWidth={2} />
           </button>}
           {advanced && <div ref={attentionMenuRef} className={density === "icons" ? "relative" : "contents"}>
             <button
@@ -2400,6 +2452,16 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
                 <button
                   onClick={() => {
                     setPlusOpen(false);
+                    setNewChatOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 px-3.5 py-2 text-left text-[14px] text-ink hover:bg-raised/70"
+                >
+                  <MessageSquarePlus size={16} className="text-ink-secondary" />
+                  {t("sidebar.newChat.title")}
+                </button>
+                <button
+                  onClick={() => {
+                    setPlusOpen(false);
                     dispatch({ type: "toggleNewBot", open: true });
                   }}
                   className="flex w-full items-center gap-3 px-3.5 py-2 text-left text-[14px] text-ink hover:bg-raised/70"
@@ -2456,7 +2518,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
         </div>
       </div>
 
-      {density === "icons" && <DesktopWorkspaceSwitcher compact cloudHome={state.config?.cloudHome === true} owner={cloudOwner} />}
+      {density === "icons" && <DesktopWorkspaceSwitcher compact cloudHome={state.config?.cloudHome === true} owner={cloudOwner} howTo={state.cloudHowTo} onMenuClosed={endHowTo} />}
       <OrganizationIdentity compact={density === "icons"} />
       {/* Search */}
       <div className={cn("pt-1 pb-3", density === "icons" ? "hidden" : "px-3")}>
@@ -2855,6 +2917,18 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           }}
         />
       {newRoom && <NewRoomPanel onClose={() => setNewRoom(false)} />}
+      {/* Portaled: below md the sidebar's translate makes it the containing
+          block for fixed children, which would trap the panel inside it. */}
+      {newChatOpen && createPortal(
+        <SidebarNewChatPanel
+          anchor={sidebarRef.current}
+          style={windowNoDragStyle}
+          onClose={() => setNewChatOpen(false)}
+          onNewBot={() => { setNewChatOpen(false); dispatch({ type: "toggleNewBot", open: true }); }}
+          onNewGroup={() => { setNewChatOpen(false); setNewRoom(true); }}
+        />,
+        document.body,
+      )}
       {!remoteClient && archivedBotsOpen && (
         <ArchivedBotsPanel
           bots={archivedBots}

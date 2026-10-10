@@ -100,6 +100,10 @@ export function MessageActions({
         press = null;
       }
     };
+    const cancel = () => {
+      if (press) clearTimeout(press.timer);
+      press = null;
+    };
     const up = (event: PointerEvent) => {
       if (!press || event.pointerType !== "touch") return;
       clearTimeout(press.timer);
@@ -118,7 +122,7 @@ export function MessageActions({
     row.addEventListener("pointerdown", down);
     row.addEventListener("pointermove", move);
     row.addEventListener("pointerup", up);
-    row.addEventListener("pointercancel", move);
+    row.addEventListener("pointercancel", cancel);
     return () => {
       if (press) clearTimeout(press.timer);
       row.removeEventListener("pointerenter", enter);
@@ -128,7 +132,7 @@ export function MessageActions({
       row.removeEventListener("pointerdown", down);
       row.removeEventListener("pointermove", move);
       row.removeEventListener("pointerup", up);
-      row.removeEventListener("pointercancel", move);
+      row.removeEventListener("pointercancel", cancel);
     };
   }, []);
 

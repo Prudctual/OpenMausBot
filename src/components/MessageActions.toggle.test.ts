@@ -93,6 +93,17 @@ describe("message actions row", () => {
     expect(shown()).toBe(true);
   });
 
+  it("does not reveal actions after a canceled touch at the same position", async () => {
+    vi.useFakeTimers();
+    await render();
+    await pointer("pointerdown", body(), "touch");
+    await pointer("pointercancel", body(), "touch");
+    await act(async () => { vi.advanceTimersByTime(500); });
+    expect(shown()).toBe(false);
+    await pointer("pointerup", body(), "touch");
+    expect(shown()).toBe(false);
+  });
+
   it("opens the more menu with the moved actions and closes it on a pick", async () => {
     await render();
     await pointer("pointerenter", row(), "mouse");

@@ -97,6 +97,27 @@ describe("room message actions", () => {
     expect(html).toContain("Show full message");
     expect(html).not.toContain("Show raw markdown");
   });
+
+  it("keeps delivered files beneath the reply alongside its quiet actions", () => {
+    const reply: Message = {
+      ...text("a", "bot", "See [notes.md](/work/notes.md). The report is attached."),
+      attachments: [
+        { kind: "file", path: "/store/notes.md", name: "notes.md", mime: "text/markdown" },
+        { kind: "file", path: "/store/report.pdf", name: "report.pdf", mime: "application/pdf" },
+      ],
+    };
+    const html = markup([reply]);
+    // The inline delivery stays inline, and the other file keeps main's
+    // compact beneath-reply gallery rather than a duplicate attachment card.
+    expect(html.match(/title="Save a copy"/g)).toHaveLength(1);
+    expect(html).toContain(">notes.md<");
+    expect(html).not.toContain('aria-label="Save a copy of notes.md"');
+    expect(html.match(/aria-label="Save a copy of report\.pdf"/g)).toHaveLength(1);
+    expect(html).toMatch(/<section[^>]*class="mt-2\.5 /);
+    expect(html).toContain('data-testid="message-actions"');
+    expect(html).toContain("Reply to message");
+    expect(html).toContain('aria-haspopup="menu"');
+  });
 });
 
 describe("room message boundary", () => {
