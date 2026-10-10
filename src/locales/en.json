@@ -3944,5 +3944,9 @@
   "approval.compact.wantsToRun": "{name} wants to run",
   "approval.compact.maySend": "May send",
   "approval.outbound.runCode": "Run code on {app}?",
-  "approval.held.code": "This runs code that could send or change things in your apps, so it always asks first."
+  "approval.held.code": "This runs code that could send or change things in your apps, so it always asks first.",
+  "citation.addToPrompt": "Add to prompt",
+  "citation.shorten": "Shorten selection",
+  "citation.tooLong": "Selection is too long to add",
+  "citation.remove": "Remove quote: {quote}"
 }

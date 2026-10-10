@@ -31,6 +31,8 @@ import { ComposerMenuRow } from "./ComposerMenuRow";
 import { MentionTextarea } from "./MentionTextarea";
 import { ComposerAttachments, pathForFile } from "./ComposerAttachments";
 import { splitTranscriptCitations, type CitationAttachment } from "@/lib/citations";
+import { ComposerQuoteChip, quoteLineDirection } from "./CitationUI";
+import { removesQuoteChip } from "@/lib/citations-dom";
 import { LocalComputerAutoWarning } from "./LocalComputerAutoWarning";
 import { PlaceChip } from "./PlaceChip";
 import { FullAccessWarning } from "./FullAccessWarning";
@@ -209,6 +211,16 @@ export function Composer({
     },
     [attachments, editAttachments],
   );
+  /** Quotes the person added from a message, in the order they were added.
+   * They ride the draft's attachments and serialize exactly as before. */
+  const quotes = useMemo(
+    () => attachments.filter((attachment): attachment is CitationAttachment => attachment.kind === "citation"),
+    [attachments],
+  );
+  const removeQuote = useCallback((id: string) => {
+    removeAttachment(id);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [removeAttachment]);
   const displayPasteInChatBox = useCallback(
     /** Moves one pasted attachment into the editable draft and restores focus. */
     function displayPasteInChatBox(attachment: PasteAttachment) {
@@ -946,7 +958,6 @@ export function Composer({
           items={attachments}
           onAdd={addAttachments}
           onRemove={removeAttachment}
-          onChangeCitation={(citation: CitationAttachment) => editAttachments((current) => current.map((attachment) => attachment.id === citation.id ? citation : attachment))}
           onDisplayInChatBox={displayPasteInChatBox}
           allowImages={engineSupportsImages}
           notice={attachmentNotice}
@@ -1065,6 +1076,10 @@ export function Composer({
           )}
           <MentionTextarea
           wrapperClassName="@max-[30rem]/composer:order-first @max-[30rem]/composer:basis-full"
+          leading={quotes.length > 0 ? quotes.map((quote) => (
+            <ComposerQuoteChip key={quote.id} citation={quote} onRemove={() => removeQuote(quote.id)} />
+          )) : undefined}
+          leadingDir={quotes.length > 0 ? quoteLineDirection(text, quotes) : undefined}
           inputRef={inputRef}
           peers={group ? members ?? [] : state.bots.filter((member) => member.id !== bot?.id)}
           everyone={Boolean(group && !group.dm)}
@@ -1120,6 +1135,17 @@ export function Composer({
                 return;
               }
             }
+            // The quote chips sit before the caret: Backspace at the very
+            // start of the input, or Escape, takes the newest one back out.
+            if (quotes.length > 0 && !recording && removesQuoteChip(
+              { key: e.key, isComposing: e.nativeEvent.isComposing },
+              { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd },
+            )) {
+              e.preventDefault();
+              e.stopPropagation();
+              removeQuote(quotes[quotes.length - 1]!.id);
+              return;
+            }
             // an empty composer + ArrowUp = edit your last message (like a chat app)
             if (e.key === "ArrowUp" && !hasContent && onEditLast) {
               e.preventDefault();
@@ -1151,7 +1177,11 @@ export function Composer({
           disabled={Boolean(approval) || locked}
           aria-busy={bot?.awaitingThreadSnapshot || undefined}
           placeholder={
-            setupLocked
+            // a quote chip leads the line, as in the design: no long hint
+            // wrapping beside it
+            quotes.length > 0 && !approval && !locked && !recording
+              ? ""
+              : setupLocked
               ? t("composer.placeholder.locked")
               : approval
               ? t("composer.placeholder.approval")
