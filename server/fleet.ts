@@ -245,6 +245,7 @@ export function instanceEnv(input: { workspace: FleetWorkspace; dataDir: string;
     `OMB_PORT=${input.workspace.port}`,
     `OMB_WEBHOOK_PORT=${input.workspace.webhookPort}`,
     `OMB_PUBLIC_URL=https://${input.workspace.host}`,
+    `OMB_WEBHOOK_PUBLIC_URL=https://${input.workspace.host}`,
   ];
   if (input.licenseKey) lines.push(`OMB_LICENSE_KEY=${input.licenseKey}`);
   if (input.portalUrl) lines.push(`OMB_ADMIN_URL=${input.portalUrl}`, `OMB_ADMIN_WORKSPACE=${input.workspace.slug}`);

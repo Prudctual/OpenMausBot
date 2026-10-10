@@ -97,7 +97,7 @@ describe("rendered files", () => {
   it("writes the environment, the first config and the sign-in edits the server reads live", () => {
     const workspace: FleetWorkspace = { slug: "acme", host: "acme.agentada.cc", port: 8810, webhookPort: 8811, status: "running", createdAt: "" };
     expect(instanceEnv({ workspace, dataDir: "/var/lib/openmausbot/acme/.openmausbot", licenseKey: "omb1.k" })).toBe(
-      "OMB_DATA_DIR=/var/lib/openmausbot/acme/.openmausbot\nOMB_PORT=8810\nOMB_WEBHOOK_PORT=8811\nOMB_PUBLIC_URL=https://acme.agentada.cc\nOMB_LICENSE_KEY=omb1.k\n",
+      "OMB_DATA_DIR=/var/lib/openmausbot/acme/.openmausbot\nOMB_PORT=8810\nOMB_WEBHOOK_PORT=8811\nOMB_PUBLIC_URL=https://acme.agentada.cc\nOMB_WEBHOOK_PUBLIC_URL=https://acme.agentada.cc\nOMB_LICENSE_KEY=omb1.k\n",
     );
     expect(JSON.parse(initialConfig({ admins: ["ada@example.test"], members: ["@acme.test"], anthropicKey: "sk-ant-x", monthlyCapUsd: 50 }))).toEqual({
       signIn: { admins: ["ada@example.test"], members: ["@acme.test"] }, anthropic: { key: "sk-ant-x" }, budgets: { monthlyUsd: 50 },

@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type RequestListener, type Server, type ServerResponse } from "node:http";
 import { z } from "zod";
 
 import { parseJson, type JsonValue } from "./schema.ts";
@@ -145,6 +145,59 @@ export function createWebhookIngressHandler(manager: WebhookManager, claimReques
     } finally {
       release?.();
     }
+  };
+}
+
+/** A delivery path and nothing else. `URL` folds `..` before the match, so a
+ * tunnel request cannot walk out of `/hooks` into the paired app. */
+const WEBHOOK_DELIVERY_PATH = /^\/hooks\/wh_[A-Za-z0-9_-]+(?:\/[^/]+)?$/;
+
+export function isWebhookDeliveryPath(url: string | undefined): boolean {
+  let pathname: string;
+  try {
+    pathname = new URL(url ?? "/", "http://localhost").pathname;
+  } catch {
+    return false;
+  }
+  return WEBHOOK_DELIVERY_PATH.test(pathname);
+}
+
+/** The address copied onto a webhook when this process's own edge already
+ * forwards `/hooks`. An operator-set `OMB_WEBHOOK_PUBLIC_URL` wins. Tailscale
+ * and a proxy this process did not configure are left alone: they front the
+ * app port, and advertising them would hand out a URL that cannot deliver. */
+export function webhookPublicUrlForEdge(input: {
+  tunnel: boolean;
+  domain: boolean;
+  publicUrl?: string;
+  existing?: string;
+}): string | undefined {
+  const existing = input.existing?.trim();
+  if (existing) return existing;
+  if (!input.publicUrl || (!input.tunnel && !input.domain)) return undefined;
+  try {
+    return advertisedWebhookBase(input.publicUrl);
+  } catch {
+    return undefined;
+  }
+}
+
+/** `serve --tunnel` has one public listener. Webhook POSTs skip pairing and
+ * use the receiver's own secret. Every other request keeps the app handler. */
+export function createTunnelRequestHandler(app: RequestListener, webhooks: RequestListener): RequestListener {
+  return (req, res) => {
+    const handled = req.method === "POST" && isWebhookDeliveryPath(req.url) ? webhooks(req, res) : app(req, res);
+    // Node does not keep the socket open for a rejected listener promise.
+    // A failure that escaped the receiver still answers, and never with a secret.
+    void Promise.resolve(handled).catch(() => {
+      if (res.headersSent || res.writableEnded) return;
+      res.writeHead(500, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      });
+      res.end(JSON.stringify({ error: "Webhook delivery failed" }));
+    });
   };
 }
 

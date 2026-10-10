@@ -37,6 +37,7 @@ import { appendAdminAction, flushAdminActivity, sharedSignIn } from "./admin-act
 import { bindDecisionRetention, decisionRetentionDays } from "./decision-log.ts";
 import { hostedWorkspaceConfigured } from "./enterprise.ts";
 import { resolveLoopbackTrust } from "./request-auth.ts";
+import { webhookPublicUrlForEdge } from "./webhook-ingress.ts";
 import { restartPolicy } from "./restart.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { ensureCaddy, normalizeDomainOption, startCaddy, type RunningCaddy } from "./caddy.ts";
@@ -978,6 +979,13 @@ export async function runServe(options: CliOptions, log: (line: string) => void 
     }
     if (startupCancelled) throw new SetupCancelled();
     if (publicUrl) env.OMB_PUBLIC_URL = publicUrl;
+    const webhookPublic = webhookPublicUrlForEdge({
+      tunnel: plan !== null,
+      domain: Boolean(options.domain),
+      publicUrl,
+      existing: env.OMB_WEBHOOK_PUBLIC_URL,
+    });
+    if (webhookPublic) env.OMB_WEBHOOK_PUBLIC_URL = webhookPublic;
     child = spawn(entry.command, entry.args, { env, stdio: [ownerToken ? "pipe" : "ignore", logFd ?? "inherit", logFd ?? "inherit"] });
     if (ownerToken) {
       child.stdin?.on("error", () => { /* the server exited first; startup reports it */ });
