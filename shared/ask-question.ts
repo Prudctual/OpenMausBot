@@ -133,6 +133,8 @@ function parseQuestion(value: unknown): AskQuestion | null {
     ...(header ? { header } : {}),
     ...(value.multiSelect === true ? { multiSelect: true } : {}),
     options,
+    // only meaningful beside options: with none, free text is the only answer
+    ...(value.custom === false && options.length ? { custom: false as const } : {}),
   };
 }
 

@@ -56,14 +56,17 @@ import { macCuaPermissionMessage, missingMacCuaPermissions } from "@/lib/mac-cua
 import { failedTurnCause, signedOutEngine } from "@/lib/failed-turn";
 import { openPlaceAction, placeRowViewFor, usePlaceSeat, worksOnSimpleLabel } from "@/lib/place-view";
 import type { PlaceRow } from "../../shared/place-view";
+import { trialCreditKind, type TrialCreditRefusal } from "../../shared/trial-credit";
+import type { LocaleKey } from "@/locales";
 import { isProviderSafetyBlock, PROVIDER_SAFETY_GUIDANCE, PROVIDER_SAFETY_HELP_URL } from "../../shared/provider-safety";
+import { isCancelledTranscriptRow } from "../../shared/client-cancel";
 import { BotAvatar } from "./Avatar";
 import { TurnPresence } from "./TurnPresence";
 import { showToolCallsEnabled, skillAuthoringEnabled } from "@/lib/feature-flags";
 import { normalizeState, stateForBot } from "@/lib/mascot";
 import { peerLine, peerRequest, type PeerLine } from "@/lib/peer-message";
 import { showWorkingDots } from "@/lib/turn-tail";
-import { liveActivityLabel } from "@/lib/live-activity";
+import { liveActivityPhrases } from "@/lib/live-activity";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { VoiceNoteBubble, type VoiceNoteAttachment } from "./VoiceNoteBubble";
 import { RawMarkdownView, RawToggleAction } from "./RawMarkdownToggle";
@@ -72,6 +75,7 @@ import { VerifyCard } from "./VerifyCard";
 import { askText, runSkill, runSteps, runSummary, showRun, skillPrompt } from "@/lib/verify-steps";
 import { useShowRunCard } from "@/lib/run-card-preferences";
 import { ToolActivity } from "./ToolActivity";
+import { DataResultChip } from "./DataResultChip";
 import { ThreadRefText } from "./ThreadRefs";
 import { OptionCard, shouldHideOnboardingCard } from "./OptionCard";
 import { ApprovalCard } from "./ApprovalCard";
@@ -83,7 +87,7 @@ import { ReplyQuote } from "./ReplyQuote";
 import { ConnectorCard } from "./ConnectorCard";
 import { SecretRequestCard } from "./SecretRequestCard";
 import { hasRoutineExecutionTask, RoutineRunCard } from "./RoutineRunCard";
-import { AttachmentGallery, collectMessageFiles, splitMessageAttachments } from "./AttachmentGallery";
+import { AttachmentGallery, collectMessageFiles, replyAttachmentGroup, splitMessageAttachments } from "./AttachmentGallery";
 import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle";
@@ -109,6 +113,7 @@ import { activeLocale, t } from "@/lib/i18n";
 import { COMPACT_BUBBLE } from "@/lib/compact-chip";
 import { groupTranscript, isStatusActivity } from "@/lib/activity-runs";
 import { StatusActivityRow } from "@/components/StatusActivityRow";
+import { CancelledTurnRow } from "./CancelledTurnRow";
 import { ActivityRun } from "./ActivityRun";
 import { TurnNarrationRun } from "./TurnNarrationRun";
 import { webhookMessageView } from "@/lib/webhook-message";
@@ -265,7 +270,7 @@ export function ErrorRow({
         {macCuaReason &&
           <MacCuaRecoveryActions reason={message} />}
         {message.includes("subscription_sharing_usage_limit_exceeded") ? (
-          <a href={CHATGPT_USAGE_URL} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex rounded-lg bg-ink px-3 py-1.5 text-[12.5px] font-medium text-app" onClick={(event) => {
+          <a href={CHATGPT_USAGE_URL} target="_blank" rel="noopener noreferrer" className="ui-button ui-button-md mt-2 border-transparent bg-ink text-app hover:brightness-110" onClick={(event) => {
             if (window.ogb?.openExternal) { event.preventDefault(); void openExternalLink(CHATGPT_USAGE_URL); }
           }}>{t("engineSetup.chatgpt.manageUsage")}</a>
         ) : claudeUpdateInstance ? (
@@ -283,7 +288,7 @@ export function ErrorRow({
             <button
               type="button"
               onClick={action.onClick}
-              className="mt-1.5 flex items-center gap-1.5 rounded-full border border-danger/30 px-2.5 py-1 text-[12.5px] hover:bg-danger/15"
+              className="ui-button ui-button-md mt-1.5 rounded-full border-danger/30 bg-transparent text-danger hover:bg-danger/15"
             >
               {action.label}
             </button>
@@ -292,7 +297,7 @@ export function ErrorRow({
           onRetry && (
             <button
               onClick={onRetry}
-              className="mt-1.5 flex items-center gap-1.5 rounded-full border border-danger/30 px-2.5 py-1 text-[12.5px] hover:bg-danger/15"
+              className="ui-button ui-button-md mt-1.5 rounded-full border-danger/30 bg-transparent text-danger hover:bg-danger/15"
             >
               <RefreshCw size={12} /> {t("chat.retry")}
             </button>
@@ -325,6 +330,19 @@ function PlaceFailedRow({ place, botId, threadId, onRetry }: {
   return <ErrorRow message={view.line} action={view.action && onClick ? { label: view.action.label, onClick } : null} />;
 }
 
+/** The trial's Claude credit refused a turn (shared/trial-credit.ts): its
+ * stored English words, said again in the reader's language. */
+const TRIAL_CREDIT_LINE: Record<TrialCreditRefusal, LocaleKey> = {
+  used_up: "engines.trialCreditUsedUp", ended: "engines.trialCreditEnded", paused: "engines.trialCreditPaused", too_low: "engines.trialCreditTooLow",
+};
+/** Used up, gone or too little for this chat: the next step is the person's
+ * own AI, in Settings → Engines. Paused: trying again later is. */
+function TrialCreditFailedRow({ kind, onRetry }: { kind: TrialCreditRefusal; onRetry?: () => void }) {
+  const { dispatch } = useStore();
+  if (kind === "paused") return <ErrorRow message={t(TRIAL_CREDIT_LINE[kind])} onRetry={onRetry} />;
+  return <ErrorRow message={t(TRIAL_CREDIT_LINE[kind])} action={{ label: t("chat.error.connectOwnAi"), onClick: () => dispatch({ type: "toggleAppSettings", open: true, section: "engines" }) }} />;
+}
+
 /** Only a local, editable Claude Code engine can be updated from chat; a
  * company-managed one is the organisation's to update. */
 export function claudeUpdateTarget(engine: InstanceInfo | undefined): InstanceInfo | undefined {
@@ -345,6 +363,8 @@ export function FailedTurnRow({ tool, engine, onRetry, botId, threadId }: {
   threadId?: string;
 }) {
   if (tool.place && botId) return <PlaceFailedRow place={tool.place} botId={botId} threadId={threadId} onRetry={onRetry} />;
+  const credit = trialCreditKind(failedTurnCause(tool.name) ?? "");
+  if (credit) return <TrialCreditFailedRow kind={credit} onRetry={onRetry} />;
   const signedOut = signedOutEngine(tool, engine);
   return (
     <ErrorRow
@@ -488,6 +508,11 @@ const Bubble = memo(function Bubble({
   const linkedFiles = useMemo(
     () => user ? [] : [...attached.files, ...collectMessageFiles(text, [...attached.images, ...attached.files.map((file) => file.path)])],
     [user, text, attached],
+  );
+  // a reply with text lists its files under the text, without the ones it links inline
+  const group = useMemo(
+    () => !user && text.trim() ? replyAttachmentGroup(text, message.attachments) : null,
+    [user, text, message.attachments],
   );
   const voiceNotes = useMemo(
     () => message.attachments?.filter((attachment): attachment is VoiceNoteAttachment => attachment.kind === "audio") ?? [],
@@ -656,12 +681,13 @@ const Bubble = memo(function Bubble({
                   ))}
                 </div>
               )}
-              <AttachmentGallery images={generatedPaths} files={linkedFiles} message={{ threadId, messageId: message.id }} className={text ? undefined : "mb-0"} eager={eagerAttachments} />
+              {!group && <AttachmentGallery images={generatedPaths} files={linkedFiles} message={{ threadId, messageId: message.id }} className={text ? undefined : "mb-0"} eager={eagerAttachments} />}
               {viewRaw && text ? (
                 <div data-citation-source={message.id} data-citation-owner-type="bot" data-citation-owner={botId} data-citation-thread={threadId}><RawMarkdownView text={text} /></div>
               ) : text ? (
-                <div data-citation-source={message.id} data-citation-owner-type="bot" data-citation-owner={botId} data-citation-thread={threadId}><ChatMarkdown text={text} mentionPeers={mentionPeers} message={{ threadId, messageId: message.id }} /></div>
+                <div data-citation-source={message.id} data-citation-owner-type="bot" data-citation-owner={botId} data-citation-thread={threadId}><ChatMarkdown text={text} mentionPeers={mentionPeers} message={{ threadId, messageId: message.id }} delivered={group?.delivered} /></div>
               ) : null}
+              {group && <AttachmentGallery images={group.images} files={group.files} message={{ threadId, messageId: message.id }} eager={eagerAttachments} beneath />}
             </MessageBoundary>
           )}
         </div>
@@ -784,7 +810,7 @@ const ActivityChip = memo(function ActivityChip({ message, place = "auto" }: { m
         <button
           onClick={() => dispatch({ type: "select", id: comm.groupId })}
           title={t("chat.openConversationWith", { name: comm.withName })}
-          className="flex items-center gap-2 rounded-full border border-hairline/40 bg-panel px-3 py-1.5 text-[13px] text-ink-secondary hover:bg-raised hover:text-ink"
+          className="ui-pill"
         >
           <BotAvatar bot={withBot ?? { name: comm.withName, color: comm.withColor }} state="happy" size={16} animated={false} />
           <span className="max-w-[480px] truncate">{tool.name}</span>
@@ -965,6 +991,15 @@ const MessagesList = memo(function MessagesList({
         }
         const m = item.message;
         const row = (() => {
+          // A client abort is a stop, not a failure. Legacy rows still store
+          // the provider's sentence or an error row; both read as this line.
+          if (isCancelledTranscriptRow(m)) {
+            return (
+              <CancelledTurnRow
+                onRetry={m.id === lookups.retryableId && canRetryLast ? onRegenerate : undefined}
+              />
+            );
+          }
           switch (m.kind) {
             case "secret":
               return m.secret ? <SecretRequestCard botId={botId} threadId={threadId} message={m} /> : null;
@@ -994,6 +1029,8 @@ const MessagesList = memo(function MessagesList({
             case "routine.run":
               return <RoutineRunRow message={m} botId={botId} />;
             case "activity": {
+              // a Data receipt first: its title is a person's words, never a status or error marker
+              if (m.dataResult) return <DataResultChip message={m} />;
               if (isStatusActivity(m)) return <StatusActivityRow message={m} />;
               // a failed turn is an error, not a tool run — render it as one.
               // bot⇄bot comm chips and opened-thread chips stay because they
@@ -1010,7 +1047,7 @@ const MessagesList = memo(function MessagesList({
                   />
                 );
               }
-              if (!showToolCalls && !m.comm && !m.threadRef) return null;
+              if (!showToolCalls && !m.comm && !m.threadRef && !m.dataResult) return null;
               return <ActivityChip message={m} place={place} />;
             }
             case "digest":
@@ -1257,7 +1294,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   // is finished, the whole bubble pops in above the mascot.
   const lastMessage = messages.at(-1);
   const toolInFlight = lastMessage?.kind === "activity" && lastMessage.tool?.ok === undefined;
-  const activityLabel = liveActivityLabel(lastMessage);
+  const activity = liveActivityPhrases(lastMessage);
   const waiting = Boolean(
     bot.busy &&
       bot.activity !== "waiting-on-you" &&
@@ -1517,7 +1554,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
             <div className="flex justify-center pt-2">
               <button
                 onClick={showEarlier}
-                className="rounded-full border border-hairline/40 bg-panel px-3 py-1 text-[12.5px] text-ink-secondary hover:bg-raised hover:text-ink"
+                className="ui-pill"
               >
                 {t("chat.showEarlier", { count: hiddenCount })}
               </button>
@@ -1527,7 +1564,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               <button
                 onClick={loadOlder}
                 disabled={olderPending}
-                className="rounded-full border border-hairline/40 bg-panel px-3 py-1 text-[12.5px] text-ink-secondary hover:bg-raised hover:text-ink disabled:opacity-60"
+                className="ui-pill"
               >
                 {olderPending ? t("chat.loadingEarlier") : t("chat.loadEarlier")}
               </button>
@@ -1560,7 +1597,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
             <div className="flex justify-center">
               <button
                 onClick={showLater}
-                className="rounded-full border border-hairline/40 bg-panel px-3 py-1 text-[12.5px] text-ink-secondary hover:bg-raised hover:text-ink"
+                className="ui-pill"
               >
                 {t("chat.showLater", { count: laterCount })}
               </button>
@@ -1568,7 +1605,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           )}
           {computerStarting && (
             <div className="flex justify-start">
-              <div className="flex items-center gap-2 rounded-full border border-hairline/40 bg-panel px-3 py-1.5 text-[13px] text-ink-secondary">
+              <div className="ui-pill">
                 <WorkingDots size={3.5} />
                 {computerStarting}
               </div>
@@ -1588,7 +1625,9 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               />
             }
             visible={presenceVisible}
-            label={activityLabel}
+            phrases={activity.phrases}
+            phase={activity.phase}
+            seed={`${bot.id}:${bot.threadId ?? ""}:${busySince ?? ""}`}
             answering={popping !== null}
             since={busySince}
           />
