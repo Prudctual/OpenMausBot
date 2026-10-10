@@ -6,8 +6,6 @@ name: Plus macOS
 # its own (electron/plus-updater.mjs) through the plus-update.json manifest
 # this workflow publishes on a plus-* release of this fork.
 on:
-  push:
-    branches: ["plus/**"]
   workflow_dispatch:
     inputs:
       plus_build:
