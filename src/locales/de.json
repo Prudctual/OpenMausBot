@@ -1624,5 +1624,7 @@
   "pro.noThanks": "Nicht mehr anzeigen",
   "pro.openFailed": "Dein Browser konnte nicht geöffnet werden. Bitte versuche es erneut.",
   "chat.activity.retrying": "Erneuter Versuch {attempt}/{max}, noch {seconds}s",
-  "chat.activity.retryingAttempt": "Erneuter Versuch {attempt}/{max}"
+  "chat.activity.retryingAttempt": "Erneuter Versuch {attempt}/{max}",
+  "chat.export.pdf": "Als PDF herunterladen",
+  "chat.export.pdfFailed": "PDF konnte nicht gespeichert werden"
 }

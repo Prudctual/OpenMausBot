@@ -3938,5 +3938,7 @@
   "cloudSetup.lend.action": "Choose what to lend",
   "cloudSetup.lend.failed": "Could not open Settings on this Mac. Try again.",
   "chat.activity.retrying": "Retrying, attempt {attempt}/{max}, {seconds}s",
-  "chat.activity.retryingAttempt": "Retrying, attempt {attempt}/{max}"
+  "chat.activity.retryingAttempt": "Retrying, attempt {attempt}/{max}",
+  "chat.export.pdf": "Download as PDF",
+  "chat.export.pdfFailed": "Could not save the PDF"
 }

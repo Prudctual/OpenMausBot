@@ -3809,5 +3809,7 @@
   "pro.openFailed": "無法開啟瀏覽器，請再試一次。",
   "cloudAccount.purchaseHelp": "請使用該帳戶在瀏覽器中完成付款。購買後，點「重新整理」會向 OpenMausBot Cloud 檢查啟用狀態；僅從結帳頁面返回不會啟用方案。",
   "chat.activity.retrying": "正在重試，第 {attempt}/{max} 次，還剩 {seconds} 秒",
-  "chat.activity.retryingAttempt": "正在重試，第 {attempt}/{max} 次"
+  "chat.activity.retryingAttempt": "正在重試，第 {attempt}/{max} 次",
+  "chat.export.pdf": "下載為 PDF",
+  "chat.export.pdfFailed": "無法儲存 PDF"
 }

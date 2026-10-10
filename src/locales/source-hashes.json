@@ -1627,7 +1627,9 @@
       "pro.noThanks": "f6f62e01a13bcae93b71dafdb9eba6310bfec86a9f907f6ea71d1a0fdea9f47c",
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "es": {
       "pro.fromPrice": "a48a04a457d60b08b54fc83e7a6c4584ffedb1e23621859084900c8521a3af7b",
@@ -3237,7 +3239,9 @@
       "pro.noThanks": "f6f62e01a13bcae93b71dafdb9eba6310bfec86a9f907f6ea71d1a0fdea9f47c",
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "fr": {
       "pro.fromPrice": "a48a04a457d60b08b54fc83e7a6c4584ffedb1e23621859084900c8521a3af7b",
@@ -4847,7 +4851,9 @@
       "pro.noThanks": "f6f62e01a13bcae93b71dafdb9eba6310bfec86a9f907f6ea71d1a0fdea9f47c",
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "hi": {
       "pro.fromPrice": "a48a04a457d60b08b54fc83e7a6c4584ffedb1e23621859084900c8521a3af7b",
@@ -6457,7 +6463,9 @@
       "pro.noThanks": "f6f62e01a13bcae93b71dafdb9eba6310bfec86a9f907f6ea71d1a0fdea9f47c",
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "ja": {
       "pro.fromPrice": "a48a04a457d60b08b54fc83e7a6c4584ffedb1e23621859084900c8521a3af7b",
@@ -8069,7 +8077,9 @@
       "pro.noThanks": "f6f62e01a13bcae93b71dafdb9eba6310bfec86a9f907f6ea71d1a0fdea9f47c",
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "pt-br": {
       "pro.fromPrice": "a48a04a457d60b08b54fc83e7a6c4584ffedb1e23621859084900c8521a3af7b",
@@ -9692,7 +9702,9 @@
       "pro.noThanks": "f6f62e01a13bcae93b71dafdb9eba6310bfec86a9f907f6ea71d1a0fdea9f47c",
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "zh": {
       "pro.fromPrice": "a48a04a457d60b08b54fc83e7a6c4584ffedb1e23621859084900c8521a3af7b",
@@ -12250,7 +12262,9 @@
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "cloudAccount.purchaseHelp": "d47b6692424b11002914914fff8caca4fd71fa1f46cfa430b514f3363aa4edb9",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "zh-tw": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -16063,7 +16077,9 @@
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "cloudAccount.purchaseHelp": "d47b6692424b11002914914fff8caca4fd71fa1f46cfa430b514f3363aa4edb9",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     },
     "uk": {
       "pro.fromPrice": "a48a04a457d60b08b54fc83e7a6c4584ffedb1e23621859084900c8521a3af7b",
@@ -18219,7 +18235,9 @@
       "pro.noThanks": "f6f62e01a13bcae93b71dafdb9eba6310bfec86a9f907f6ea71d1a0fdea9f47c",
       "pro.openFailed": "6051a5f580f72d5d1483489665cab2cfa54334223b3df6ce8f5896c6f232b608",
       "chat.activity.retrying": "deb5238187f159cea1d72ed73d06ba9b7c8b2290d397ebef8f8ce44341888566",
-      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4"
+      "chat.activity.retryingAttempt": "ffcd20f673c58327ef1ef7051f7e807a929bcd099878f87eb56ad7c7a1201de4",
+      "chat.export.pdf": "d1dc113c7ddc595da64f333a069c0417707887f5e6c3a5cb517090f5cdd10b9f",
+      "chat.export.pdfFailed": "51bfdbb77db2e5edb7ff923eea71a2ef2d8af532a822d3766126bfa6371e3cd4"
     }
   }
 }

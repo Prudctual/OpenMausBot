@@ -2152,5 +2152,7 @@
   "pro.noThanks": "Більше не показувати",
   "pro.openFailed": "Не вдалося відкрити браузер. Спробуйте ще раз.",
   "chat.activity.retrying": "Повторюю, спроба {attempt}/{max}, ще {seconds} с",
-  "chat.activity.retryingAttempt": "Повторюю, спроба {attempt}/{max}"
+  "chat.activity.retryingAttempt": "Повторюю, спроба {attempt}/{max}",
+  "chat.export.pdf": "Завантажити як PDF",
+  "chat.export.pdfFailed": "Не вдалося зберегти PDF"
 }

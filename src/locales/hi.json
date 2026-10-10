@@ -1606,5 +1606,7 @@
   "pro.noThanks": "फिर से न दिखाएँ",
   "pro.openFailed": "आपका ब्राउज़र नहीं खुल सका। कृपया फिर से कोशिश करें।",
   "chat.activity.retrying": "फिर से कोशिश, प्रयास {attempt}/{max}, {seconds}s",
-  "chat.activity.retryingAttempt": "फिर से कोशिश, प्रयास {attempt}/{max}"
+  "chat.activity.retryingAttempt": "फिर से कोशिश, प्रयास {attempt}/{max}",
+  "chat.export.pdf": "PDF के रूप में डाउनलोड करें",
+  "chat.export.pdfFailed": "PDF सहेजा नहीं जा सका"
 }

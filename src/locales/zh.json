@@ -2554,5 +2554,7 @@
   "pro.openFailed": "无法打开浏览器，请重试。",
   "cloudAccount.purchaseHelp": "请使用该账户在浏览器中完成付款。购买后，点“刷新”会向 OpenMausBot Cloud 检查激活状态；仅从结账页面返回不会激活方案。",
   "chat.activity.retrying": "正在重试，第 {attempt}/{max} 次，还剩 {seconds} 秒",
-  "chat.activity.retryingAttempt": "正在重试，第 {attempt}/{max} 次"
+  "chat.activity.retryingAttempt": "正在重试，第 {attempt}/{max} 次",
+  "chat.export.pdf": "下载为 PDF",
+  "chat.export.pdfFailed": "无法保存 PDF"
 }

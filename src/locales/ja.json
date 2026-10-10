@@ -1608,5 +1608,7 @@
   "pro.noThanks": "今後表示しない",
   "pro.openFailed": "ブラウザーを開けませんでした。もう一度お試しください。",
   "chat.activity.retrying": "再試行中、{attempt}/{max} 回目、あと {seconds}秒",
-  "chat.activity.retryingAttempt": "再試行中、{attempt}/{max} 回目"
+  "chat.activity.retryingAttempt": "再試行中、{attempt}/{max} 回目",
+  "chat.export.pdf": "PDFでダウンロード",
+  "chat.export.pdfFailed": "PDFを保存できませんでした"
 }

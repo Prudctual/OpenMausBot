@@ -1606,5 +1606,7 @@
   "pro.noThanks": "No volver a mostrar",
   "pro.openFailed": "No se pudo abrir tu navegador. Inténtalo de nuevo.",
   "chat.activity.retrying": "Reintentando, intento {attempt}/{max}, {seconds}s",
-  "chat.activity.retryingAttempt": "Reintentando, intento {attempt}/{max}"
+  "chat.activity.retryingAttempt": "Reintentando, intento {attempt}/{max}",
+  "chat.export.pdf": "Descargar como PDF",
+  "chat.export.pdfFailed": "No se pudo guardar el PDF"
 }
