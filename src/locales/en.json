@@ -3940,5 +3940,9 @@
   "chat.activity.retrying": "Retrying, attempt {attempt}/{max}, {seconds}s",
   "chat.activity.retryingAttempt": "Retrying, attempt {attempt}/{max}",
   "chat.export.pdf": "Download as PDF",
-  "chat.export.pdfFailed": "Could not save the PDF"
+  "chat.export.pdfFailed": "Could not save the PDF",
+  "approval.compact.wantsToRun": "{name} wants to run",
+  "approval.compact.maySend": "May send",
+  "approval.outbound.runCode": "Run code on {app}?",
+  "approval.held.code": "This runs code that could send or change things in your apps, so it always asks first."
 }
