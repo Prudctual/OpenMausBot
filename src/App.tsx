@@ -33,7 +33,7 @@ import { CloudSetup } from "@/components/CloudSetup";
 import { engineReady } from "@/components/EngineLibrary";
 import { CommandPalette } from "@/components/CommandPalette";
 import { setLocale } from "@/lib/i18n";
-import { shouldOpenKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
+import { isPinThreadShortcut, selectedThreadPinChoice, shouldOpenKeyboardShortcuts } from "@/lib/keyboard-shortcuts";
 import { effectiveLanguage, useLanguageChoice } from "@/lib/language-preference";
 import { botShowsUnread } from "@/lib/bot-unread";
 import { phonePairingSettingsAction, takePhonePairingRequest } from "@/lib/phone-pairing";
@@ -152,6 +152,14 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
       }
 
       const mod = e.metaKey || e.ctrlKey;
+      if (isPinThreadShortcut(e, e.target)) {
+        const choice = selectedThreadPinChoice(state);
+        if (!choice) return;
+        e.preventDefault();
+        if (choice.owner === "bot") dispatch({ type: "updateTask", botId: choice.id, threadId: choice.threadId, patch: { pinned: !choice.pinned } });
+        else dispatch({ type: "pinGroupTask", groupId: choice.id, threadId: choice.threadId, pinned: !choice.pinned, title: choice.title });
+        return;
+      }
       if (!mod) return;
       const bots = state.bots.filter((b) => !b.hidden);
       if (e.key === "n" && !e.shiftKey) {
@@ -174,7 +182,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [state.bots, state.selectedId, state.shortcutsOpen, dispatch]);
+  }, [state.bots, state.groups, state.selectedId, state.activeView, state.shortcutsOpen, dispatch]);
 
   useEffect(() => {
     window.ogb?.setUnreadCount?.(unreadCount);

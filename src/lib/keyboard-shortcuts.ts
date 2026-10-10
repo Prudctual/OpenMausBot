@@ -130,9 +130,58 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
         macKeys: ["⌥", "↑ / ↓"],
         winKeys: ["Alt", "↑ / ↓"],
       },
+      {
+        id: "pin-thread",
+        description: "Pin or unpin the open thread",
+        macKeys: ["⌘", "⇧", "P"],
+        winKeys: ["Ctrl", "Shift", "P"],
+      },
     ],
   },
 ];
+
+/** True while the key event is aimed at something the person is editing. */
+export function shortcutTargetIsEditable(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (
+    target.isContentEditable || Boolean(target.closest("input, textarea, select, dialog, [role=dialog]"))
+  );
+}
+
+/** Cmd/Ctrl+Shift+P toggles the pin on the open thread, and never while typing. */
+export function isPinThreadShortcut(event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "defaultPrevented" | "isComposing">, target: EventTarget | null): boolean {
+  if (event.defaultPrevented || event.isComposing || event.altKey || !event.shiftKey) return false;
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "p") return false;
+  return !shortcutTargetIsEditable(target);
+}
+
+export interface PinThreadChoice {
+  owner: "bot" | "group";
+  id: string;
+  threadId: string;
+  title: string;
+  pinned: boolean;
+}
+
+/** The open bot or room thread a pin shortcut would toggle. Null away from chat. */
+export function selectedThreadPinChoice(input: {
+  activeView: string;
+  selectedId: string;
+  bots: readonly { id: string; threadId: string; tasks?: readonly { threadId: string; title?: string; pinned?: boolean }[] }[];
+  groups: readonly { id: string; name?: string; threadId: string; tasks?: readonly { threadId: string; title?: string; pinned?: boolean }[] }[];
+}): PinThreadChoice | null {
+  if (input.activeView !== "chat" || !input.selectedId) return null;
+  const bot = input.bots.find((item) => item.id === input.selectedId);
+  if (bot) {
+    const task = bot.tasks?.find((item) => item.threadId === bot.threadId);
+    if (!task) return null;
+    return { owner: "bot", id: bot.id, threadId: task.threadId, title: task.title ?? "", pinned: task.pinned === true };
+  }
+  const group = input.groups.find((item) => item.id === input.selectedId);
+  if (!group) return null;
+  const task = group.tasks?.find((item) => item.threadId === group.threadId);
+  if (!task) return null;
+  return { owner: "group", id: group.id, threadId: task.threadId, title: task.title ?? group.name ?? "", pinned: task.pinned === true };
+}
 
 /** Help chords must not interrupt editing, composition, or another dialog. */
 export function shouldOpenKeyboardShortcuts(event: KeyboardEvent): boolean {
