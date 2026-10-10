@@ -128,4 +128,32 @@ describe("QuestionCard answered in one step", () => {
     press(host.querySelector("textarea")!, { key: "Enter" });
     expect(dispatch).not.toHaveBeenCalled();
   });
+
+  it("keeps options-only questions one-tap without a text field", () => {
+    mount([{ ...plan, custom: false }]);
+    expect(host.querySelector("textarea, input")).toBeNull();
+    act(() => button("Pro").click());
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch.mock.calls[0]![0].message).toContain("A: Pro");
+  });
+
+  it("restores the choices after a failed answer so it can be retried", () => {
+    mount([plan]);
+    act(() => button("Pro").click());
+    act(() => dispatch.mock.calls[0]![0].onError());
+    expect(host.querySelector('[data-ask-card="pending"]')).not.toBeNull();
+    act(() => button("Free").click());
+    expect(dispatch).toHaveBeenCalledTimes(2);
+    expect(dispatch.mock.calls[1]![0].message).toContain("A: Free");
+  });
+
+  it("does not send Enter while an IME composition is active", () => {
+    mount([name]);
+    const field = host.querySelector("textarea")!;
+    type(field, "新项目");
+    press(field, { key: "Enter", isComposing: true });
+    expect(dispatch).not.toHaveBeenCalled();
+    press(field, { key: "Enter" });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
 });
