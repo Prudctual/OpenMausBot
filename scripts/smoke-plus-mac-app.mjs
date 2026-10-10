@@ -1,4 +1,4 @@
-// Launch the packaged Plus app on the macOS runner with an empty home and the
+// Launch the packaged Plus app on the (fresh) macOS runner with the
 // app's own smoke hook (OMB_SMOKE_TEST): the real preload bridge, the bundled
 // server's /api/health and an owner mutation must all answer, then the window
 // closes and the app must quit by itself.
@@ -15,7 +15,9 @@ const executable = path.join(app, "Contents", "MacOS", path.basename(app, ".app"
 const home = mkdtempSync(path.join(tmpdir(), "omb-plus-smoke-"));
 mkdirSync(path.join(home, ".openmausbot"), { recursive: true });
 const child = spawn(executable, [], {
-  env: { ...process.env, HOME: home, OMB_SMOKE_TEST: "1", ELECTRON_ENABLE_LOGGING: "1" },
+  // HOME stays the runner's own: a fake HOME has no login keychain and
+  // macOS then blocks on a "Keychain Not Found" dialog. The runner is a fresh VM.
+  env: { ...process.env, OMB_SMOKE_TEST: "1", ELECTRON_ENABLE_LOGGING: "1" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let output = "";
