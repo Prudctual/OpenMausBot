@@ -94,6 +94,8 @@ import { RenameTitle } from "./RenameTitle";
 import { BotActivityPicker } from "./TaskPicker";
 import { ModelPicker } from "./ModelPicker";
 import { SidebarPopoverMenu, type SidebarMenuItem } from "./SidebarPopoverMenu";
+import { MessageTime } from "./MessageTime";
+import { useRelativeNow } from "./SidebarThreadRow";
 import { ShortcutHint } from "./ShortcutHint";
 import {
   copyTranscriptToClipboard,
@@ -472,6 +474,7 @@ const Bubble = memo(function Bubble({
   onRegenerate,
   replyTarget,
   onReply,
+  now = Date.now(),
 }: {
   message: Message;
   emerging?: boolean;
@@ -487,6 +490,7 @@ const Bubble = memo(function Bubble({
   onRegenerate?: () => void;
   replyTarget?: Message;
   onReply: (message: Message) => void;
+  now?: number;
 }) {
   const { botId, threadId, botName, voiceId, tts, localVoice, busy, mentionPeers, focus, dispatch, onBranch } = useChatRows();
   const remoteClient = window.ogb?.remoteClient?.active === true;
@@ -721,14 +725,14 @@ const Bubble = memo(function Bubble({
             </button>
           </MessageActions>
         )}
-        <span
+        <MessageTime
+          at={message.at}
+          now={now}
           className={cn(
             "self-end pb-1 text-[11px] tabular-nums text-ink-tertiary opacity-0 transition-opacity group-hover:opacity-100",
-            user ? "order-first mr-2" : "ml-2",
+            user ? "order-first me-2" : "ms-2",
           )}
-        >
-          {formatTime(message.at)}
-        </span>
+        />
       </div>
       {forks.length > 1 && (
         <div className="mt-1 flex items-center gap-0.5 pr-1 text-[12px] text-ink-secondary">
@@ -912,6 +916,7 @@ const MessagesList = memo(function MessagesList({
   onReply: (message: Message) => void;
 }) {
   const { botId, threadId, botName, focus, showToolCalls, locale } = useChatRows();
+  const now = useRelativeNow();
   // Finished tool chips become compact runs; settled assistant narration
   // becomes one reversible turn row while the terminal answer stays visible.
   // The locale refreshes the turn labels when the language changes.
@@ -959,6 +964,7 @@ const MessagesList = memo(function MessagesList({
                       onSubmitEdit={onSubmitEdit}
                       replyTarget={lookups.replyTarget(message)}
                       onReply={onReply}
+                      now={now}
                     />
                   </div>
                 ))}
@@ -1068,6 +1074,7 @@ const MessagesList = memo(function MessagesList({
                   onRegenerate={m.id === lastBotTextId ? onRegenerate : undefined}
                   replyTarget={lookups.replyTarget(m)}
                   onReply={onReply}
+                  now={now}
                 />
               );
           }
