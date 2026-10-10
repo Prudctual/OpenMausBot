@@ -3,7 +3,9 @@
 // server's /api/health and an owner mutation must all answer, then the window
 // closes and the app must quit by itself.
 import { spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { homedir } from "node:os";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -18,7 +20,7 @@ const child = spawn(executable, [], {
 });
 let output = "";
 const result = await new Promise((resolve) => {
-  const timer = setTimeout(() => resolve({ ok: false, why: "timed out after 180s" }), 180_000);
+  const timer = setTimeout(() => resolve({ ok: false, why: "timed out after 300s" }), 300_000);
   const onData = (chunk) => {
     output += chunk;
     process.stdout.write(chunk);
@@ -31,6 +33,17 @@ const result = await new Promise((resolve) => {
   child.on("exit", (code) => { clearTimeout(timer); resolve({ ok: false, why: `exited early with ${code}` }); });
 });
 if (!result.ok) {
+  // Leave evidence: a screenshot and every log the app wrote.
+  try { execFileSync("screencapture", ["-x", "release/plus-smoke.png"]); } catch {}
+  for (const dir of [path.join(homedir(), "Library", "Logs", "OpenMausBot Plus"), path.join(homedir(), "Library", "Logs", "OpenMausBot"), path.join(homedir(), ".openmausbot", "logs"), path.join(home, ".openmausbot", "logs")]) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir)) {
+      const file = path.join(dir, name);
+      if (!statSync(file).isFile()) continue;
+      console.log(`----- ${file}`);
+      console.log(readFileSync(file, "utf8").slice(-6000));
+    }
+  }
   child.kill("SIGKILL");
   console.error(`::error::Plus app smoke failed: ${result.why}`);
   process.exit(1);

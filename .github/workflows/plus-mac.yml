@@ -184,11 +184,13 @@ jobs:
             --notes "Private Plus build $v on upstream $(echo "$v" | cut -d- -f1). Apple Silicon only, unsigned: first launch with right-click > Open. Plus 0.1.104-plus.1 and later find newer plus-* releases by themselves." \
             "release/${{ steps.manifest.outputs.dmg }}" release/plus-update.json
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: OpenMausBot-Plus-arm64-dmg
           path: |
             release/OpenMausBot-Plus-*-arm64.dmg
             release/plus-update.json
-          if-no-files-found: error
+            release/plus-smoke.png
+          if-no-files-found: warn
           retention-days: 14
