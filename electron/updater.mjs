@@ -9,7 +9,8 @@
 // signing). In dev it's a no-op so the browser/dev shell is unaffected.
 // electron-updater is vendored (electron/vendor/electron-updater.cjs) because
 // the packaged app ships no node_modules.
-import { app, clipboard, ipcMain } from "electron";
+import { app, clipboard, ipcMain, shell } from "electron";
+import { createPlusUpdater } from "./plus-updater.mjs";
 import { isPlusBuild } from "./plus-build.mjs";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -110,9 +111,24 @@ export function attachUpdaterWindow(mainWindow) {
 export function startUpdater() {
   // dev / unsigned builds can't auto-update — leave the banner dormant.
   // Plus never talks to the official feed, even when it is packaged.
-  if (!app.isPackaged || isPlusBuild()) {
+  if (!app.isPackaged) {
     updaterCoordinator = null;
     setState({ status: "idle" });
+    return;
+  }
+  // Plus never talks to the official feed. It follows the fork's plus-*
+  // releases and hands the verified dmg to Finder (see plus-updater.mjs).
+  if (isPlusBuild()) {
+    setState({ status: "idle", installMode: "handoff" });
+    updaterCoordinator = createPlusUpdater({
+      setState,
+      currentVersion: app.getVersion(),
+      downloadsDir: app.getPath("downloads"),
+      openPath: (file) => shell.openPath(file),
+      logger: updaterLogger(),
+    });
+    setTimeout(() => void updaterCoordinator?.check(), 15_000).unref?.();
+    setInterval(() => void updaterCoordinator?.check(), 6 * 60 * 60 * 1000).unref?.();
     return;
   }
   try {

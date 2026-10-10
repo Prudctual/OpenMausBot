@@ -115,7 +115,7 @@ export function updateLabel(phase: UpdatePhase, state: UpdaterState | null): str
     case "checking":
       return t("sidebar.update.checking");
     case "handed-off":
-      return t("sidebar.update.handedOff");
+      return (!state?.command && state?.message) || t("sidebar.update.handedOff");
     case "error":
       return state?.message?.trim() || t("sidebar.update.failed");
     case "up-to-date":

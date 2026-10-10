@@ -234,7 +234,7 @@ export function UpdatesRow() {
                   ? t("settings.updates.openingTerminal")
                   : t("settings.updates.restarting"))
               : s.status === "handed-off"
-                ? t("settings.updates.handedOff")
+                ? (!s.command && s.message) || t("settings.updates.handedOff")
                 : s.status === "error"
                   ? t("settings.updates.failed", { message: s.message ?? t("settings.updates.unknownError") })
                   : t("settings.updates.latest");

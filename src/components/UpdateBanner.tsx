@@ -60,19 +60,21 @@ export function UpdateBanner() {
           ? "Opening a terminal…"
           : "Restarting to update…"
         : s.status === "handed-off"
-          ? "Finish in a terminal"
+          ? s.command ? "Finish in a terminal" : "Finish the update"
           : "Update failed";
   const subtitle =
     s.status === "downloaded"
       ? handoff
-        ? "Copy the install command and open a terminal."
+        ? s.installNote ?? "Copy the install command and open a terminal."
         : "Restart to finish updating."
       : installing
         ? handoff
-          ? "Copying the command…"
+          ? s.message || "Copying the command…"
           : s.message || `${brand().name} will reopen in a moment.`
         : s.status === "handed-off"
-          ? s.terminalOpened
+          ? !s.command && s.message
+            ? s.message
+            : s.terminalOpened
             ? "Command copied — paste it in the terminal that opened."
             : "Command copied — paste it in a terminal to finish."
           : s.retryable === false

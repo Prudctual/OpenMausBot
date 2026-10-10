@@ -42,6 +42,7 @@ files:
   - "!**/*.d.ts"
   - "!**/*.tsbuildinfo"
   - "!**/*.test.*"
+  - "!**/*.node-test.*"
   - "!**/*.spec.*"
   - "!**/__tests__/**"
   - "!**/test/**"
@@ -200,6 +201,9 @@ mac:
       to: cloudflared/cloudflared
     - from: dist-native/browser/darwin-${arch}
       to: browser-engine
+    # DuckDB/resvg native modules for this arch only (prepare-duckdb stages it).
+    - from: dist-native/duckdb/darwin-${arch}/node_modules
+      to: duckdb/node_modules
   extendInfo:
     NSMicrophoneUsageDescription: OpenMausBot Plus uses the microphone for voice dictation into the composer.
     NSSpeechRecognitionUsageDescription: OpenMausBot Plus transcribes your voice on-device to type messages for you.

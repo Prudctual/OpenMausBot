@@ -363,6 +363,8 @@ export interface UpdaterState {
    * can finish — Ubuntu .deb (and rpm/pacman) builds use this.
    */
   installMode?: "restart" | "handoff";
+  /** hand-off only: what "Install" will do, when it is not a terminal command (Plus dmg) */
+  installNote?: string;
   /** hand-off only: the install command, already on the clipboard */
   command?: string;
   /** hand-off only: whether a terminal was opened to paste it into */

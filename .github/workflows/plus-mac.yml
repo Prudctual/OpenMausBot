@@ -1,15 +1,26 @@
 name: Plus macOS
 
 # Unsigned personal build of OpenMausBot Plus for Apple Silicon only.
-# Ad-hoc signed so it launches beside the official app. No notarization,
-# no update feed, no release publish, no Intel dmg.
+# Ad-hoc signed so it launches beside the official app. No notarization, no
+# Intel dmg, no electron-updater feed (app-update.yml). Plus finds updates on
+# its own (electron/plus-updater.mjs) through the plus-update.json manifest
+# this workflow publishes on a plus-* release of this fork.
 on:
   push:
-    branches: [plus/mac]
+    branches: ["plus/**"]
   workflow_dispatch:
+    inputs:
+      plus_build:
+        description: "Plus build number on this upstream version (version becomes <upstream>-plus.<n>)"
+        default: "1"
+        required: true
+      publish:
+        description: "Publish the dmg and plus-update.json as a plus-* release"
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   mac:
@@ -29,6 +40,22 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Set the Plus version
+        id: version
+        run: |
+          set -euo pipefail
+          base=$(node -p "require('./package.json').version.split('-')[0]")
+          n="${{ inputs.plus_build || '1' }}"
+          case "$n" in (*[!0-9]*|'') echo "::error::plus_build must be a number"; exit 1;; esac
+          v="$base-plus.$n"
+          npm pkg set version="$v"
+          if [ "$n" = 1 ]; then tag="plus-$base"; else tag="plus-$v"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Plus $v -> $tag"
+      - name: "Gate: Plus config covers every official macOS resource"
+        run: node scripts/plus-config-check.mjs
+      - run: node --test electron/plus-build.node-test.mjs electron/plus-updater.node-test.mjs
       - name: Clean generated output
         run: rm -rf dist dist-server dist-native release
 
@@ -110,9 +137,60 @@ jobs:
           node scripts/smoke-browser-bundle.mjs --resources "$resources"
           OMB_SMOKE_DIST="$resources/server" node scripts/smoke-packaged-server.mjs --browser-bundle "$resources/browser-engine"
 
+      - name: "Gate: no Intel or foreign-platform native code anywhere in the app"
+        run: |
+          set -euo pipefail
+          app="release/mac-arm64/OpenMausBot Plus.app"
+          bad=0
+          while IFS= read -r -d '' f; do
+            if file -b "$f" | grep -q 'Mach-O'; then
+              archs=$(lipo -archs "$f" 2>/dev/null || true)
+              case " $archs " in (*x86_64*) echo "::error::$f carries $archs"; bad=1;; esac
+            elif file -b "$f" | grep -qE '^(ELF|PE32)'; then
+              echo "::error::$f is a non-macOS binary"; bad=1
+            fi
+          done < <(find "$app" -type f \( -perm -u+x -o -name '*.node' -o -name '*.dylib' -o -name '*.so' -o -name '*.dll' -o -name '*.exe' \) -print0)
+          exit $bad
+
+      - name: "Gate: the packaged app launches and its core answers"
+        run: node scripts/smoke-plus-mac-app.mjs "release/mac-arm64/OpenMausBot Plus.app"
+
+      - name: Write the Plus update manifest
+        id: manifest
+        run: |
+          set -euo pipefail
+          v="${{ steps.version.outputs.version }}"
+          tag="${{ steps.version.outputs.tag }}"
+          dmg="OpenMausBot-Plus-$v-arm64.dmg"
+          size=$(stat -f %z "release/$dmg")
+          sha=$(openssl dgst -sha512 -binary "release/$dmg" | base64 | tr -d '\n')
+          node -e 'const [v,d,s,h,u]=process.argv.slice(1);require("fs").writeFileSync("release/plus-update.json",JSON.stringify({version:v,dmg:d,size:Number(s),sha512:h,url:u},null,2)+"\n")' \
+            "$v" "$dmg" "$size" "$sha" "https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag/$dmg"
+          cat release/plus-update.json
+          echo "dmg=$dmg" >> "$GITHUB_OUTPUT"
+          echo "### Plus $v: $dmg $(( size / 1048576 )) MB" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the plus-* release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          v="${{ steps.version.outputs.version }}"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::release $tag already exists; rerun with the next plus_build"; exit 1
+          fi
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "OpenMausBot Plus $v" \
+            --notes "Private Plus build $v on upstream $(echo "$v" | cut -d- -f1). Apple Silicon only, unsigned: first launch with right-click > Open. Plus 0.1.104-plus.1 and later find newer plus-* releases by themselves." \
+            "release/${{ steps.manifest.outputs.dmg }}" release/plus-update.json
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: OpenMausBot-Plus-arm64-dmg
-          path: release/OpenMausBot-Plus-*-arm64.dmg
+          path: |
+            release/OpenMausBot-Plus-*-arm64.dmg
+            release/plus-update.json
           if-no-files-found: error
           retention-days: 14
