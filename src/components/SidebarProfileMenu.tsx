@@ -143,6 +143,12 @@ function UpdateIcon({ phase, pending, size = 18 }: { phase: UpdatePhase; pending
   return <RefreshCw size={size} />;
 }
 
+/** The phases the round update button beside this row speaks for
+ * (UpdateIndicator), so the row itself stays quiet about them. */
+export function updateHasButton(phase: UpdatePhase): boolean {
+  return phase === "downloading" || phase === "preparing" || phase === "downloaded" || phase === "installing";
+}
+
 /** Whether the updater has something the profile row should say out loud.
  * An idle updater, and the three-second "up to date" tick that follows a
  * check the user asked for from inside the menu, both stay in the menu. */
@@ -386,7 +392,7 @@ export function SidebarProfileMenu({ iconOnly = false }: { iconOnly?: boolean } 
     onFeedback: () => void openExternalLink(FEEDBACK_URL),
     onAccount: () => dispatch({ type: "toggleAppSettings", open: true, section: "cloudAccount" }),
   });
-  const noteworthy = update && updateNoteworthy(update.phase, update.pending);
+  const noteworthy = update && updateNoteworthy(update.phase, update.pending) && !updateHasButton(update.phase);
 
   return (
     <>
