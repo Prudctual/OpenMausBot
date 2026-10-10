@@ -253,6 +253,7 @@ describe("ACP turns (fake CLI)", () => {
     for (const name of Object.keys(CONTROL_PLANE_FIXTURE)) delete process.env[name];
     delete process.env.FAKE_ACP_MODELS;
     delete process.env.FAKE_ACP_MODEL_STICKS;
+    delete process.env.FAKE_ACP_MODEL_REMAP;
     delete process.env.FAKE_ACP_USAGE_ROOT;
     delete process.env.FAKE_ACP_LOAD_NULL;
     delete process.env.FAKE_ACP_REJECT_LIVE_LOAD_FILE;
@@ -1593,8 +1594,27 @@ describe("ACP turns (fake CLI)", () => {
     const done = await recorder.until((e) => e.type === "turn.completed");
     expect(done).toMatchObject({ ok: false });
     const err = recorder.events.find((e) => e.type === "runtime.error")!;
+    // said plainly first, with the runtime's own words kept after
+    expect(err.message).toMatch(/does not offer m-nope to this account, so nothing was sent\. Choose another model/);
     expect(err.message).toMatch(/model not found/);
     // nothing was generated: the prompt is never sent
+    expect(recorder.events.some((e) => e.type === "content.delta")).toBe(false);
+  });
+
+  // A runtime that maps a retired id to its replacement answers the switch
+  // OK and lands on another model. The guard below still refuses to spend
+  // the turn, and the person is told the saved model is not offered.
+  it("a retired model the agent swaps for its replacement fails the turn in plain words", async () => {
+    process.env.FAKE_ACP_MODELS = "m-one,m-two";
+    process.env.FAKE_ACP_MODEL_REMAP = "m-retired=m-two";
+    await create(SelectModelDriver);
+    await instance.adapter.sendTurn({ threadId: "t-retired-model", text: "go", model: "m-retired" });
+
+    const done = await recorder.until((e) => e.type === "turn.completed");
+    expect(done).toMatchObject({ ok: false });
+    const err = recorder.events.find((e) => e.type === "runtime.error")!;
+    expect(err.message).toMatch(/does not offer m-retired to this account/);
+    expect(err.message).toMatch(/did not switch to m-retired \(still m-two\)/);
     expect(recorder.events.some((e) => e.type === "content.delta")).toBe(false);
   });
 
