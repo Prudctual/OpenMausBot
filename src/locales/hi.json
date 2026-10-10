@@ -1590,5 +1590,21 @@
   "place.view.ccAtOnce.short": "इस्तेमाल में",
   "place.view.localUnavailable.short": "तैयार नहीं",
   "place.view.autoTeam.short": "साझा",
-  "pro.name": "MausBot Cloud"
+  "pro.name": "MausBot Cloud",
+  "pro.getPro": "Pro पाएँ",
+  "pro.headline": "अपने बॉट क्लाउड में लगातार चलते रखें।",
+  "pro.priority": "नई सुविधाएँ सबसे पहले और प्राथमिकता सहायता",
+  "pro.alwaysOn": "आपके बॉट क्लाउड में हमेशा चालू रहते हैं",
+  "pro.computers": "क्लाउड कंप्यूटर और आवाज़ सुविधा शामिल",
+  "pro.schedule": "क्लाउड में शेड्यूल किए गए काम",
+  "pro.launchPrice": "{price}/माह — पहले 100 उपयोगकर्ताओं के लिए लॉन्च कीमत, उसके बाद {laterPrice}/माह",
+  "pro.otherPlans": "इसके अलावा: Personal {personal}/माह और Max {max}/माह।",
+  "pro.tax": "कीमतों में लागू टैक्स शामिल नहीं है; टैक्स चेकआउट पर दिखाया जाता है।",
+  "pro.havePlan": "क्या आपके पास पहले से Cloud प्लान है?",
+  "pro.signIn": "साइन इन करें",
+  "pro.dismiss": "Pro परिचय हमेशा के लिए हटाएँ",
+  "pro.noThanks": "फिर से न दिखाएँ",
+  "pro.openFailed": "आपका ब्राउज़र नहीं खुल सका। कृपया फिर से कोशिश करें।",
+  "chat.activity.retrying": "फिर से कोशिश, प्रयास {attempt}/{max}, {seconds}s",
+  "chat.activity.retryingAttempt": "फिर से कोशिश, प्रयास {attempt}/{max}"
 }

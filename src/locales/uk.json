@@ -2136,5 +2136,21 @@
   "place.view.ccAtOnce.short": "Використовується",
   "place.view.localUnavailable.short": "Не готово",
   "place.view.autoTeam.short": "Спільний",
-  "pro.name": "MausBot Cloud"
+  "pro.name": "MausBot Cloud",
+  "pro.getPro": "Отримати Pro",
+  "pro.headline": "Нехай ваші боти працюють у хмарі без перерви.",
+  "pro.priority": "Нові функції першими та пріоритетна підтримка",
+  "pro.alwaysOn": "Ваші боти завжди увімкнені в хмарі",
+  "pro.computers": "Хмарні комп'ютери та голос у комплекті",
+  "pro.schedule": "Заплановані завдання в хмарі",
+  "pro.launchPrice": "{price}/міс. — стартова ціна для перших 100 користувачів, далі {laterPrice}/міс.",
+  "pro.otherPlans": "Також: Personal за {personal}/міс. і Max за {max}/міс.",
+  "pro.tax": "Ціни без урахування чинних податків, які показуються під час оплати.",
+  "pro.havePlan": "Уже маєте план Cloud?",
+  "pro.signIn": "Увійти",
+  "pro.dismiss": "Назавжди приховати знайомство з Pro",
+  "pro.noThanks": "Більше не показувати",
+  "pro.openFailed": "Не вдалося відкрити браузер. Спробуйте ще раз.",
+  "chat.activity.retrying": "Повторюю, спроба {attempt}/{max}, ще {seconds} с",
+  "chat.activity.retryingAttempt": "Повторюю, спроба {attempt}/{max}"
 }

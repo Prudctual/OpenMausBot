@@ -2537,5 +2537,22 @@
   "place.view.ccAtOnce.short": "使用中",
   "place.view.localUnavailable.short": "尚未就绪",
   "place.view.autoTeam.short": "共享",
-  "pro.name": "MausBot Cloud"
+  "pro.name": "MausBot Cloud",
+  "pro.getPro": "获取 Pro",
+  "pro.headline": "让你的机器人在云端持续运行。",
+  "pro.priority": "抢先体验新功能，享受优先支持",
+  "pro.alwaysOn": "你的机器人在云端始终在线",
+  "pro.computers": "包含云端电脑和语音",
+  "pro.schedule": "云端定时任务",
+  "pro.launchPrice": "{price}/月——前 100 位用户的首发价，之后为 {laterPrice}/月",
+  "pro.otherPlans": "另有 Personal（每月 {personal}）和 Max（每月 {max}）。",
+  "pro.tax": "价格不含适用税费，税费在结账时显示。",
+  "pro.havePlan": "已经有 Cloud 方案？",
+  "pro.signIn": "登录",
+  "pro.dismiss": "永久关闭 Pro 介绍",
+  "pro.noThanks": "不再显示",
+  "pro.openFailed": "无法打开浏览器，请重试。",
+  "cloudAccount.purchaseHelp": "请使用该账户在浏览器中完成付款。购买后，点“刷新”会向 OpenMausBot Cloud 检查激活状态；仅从结账页面返回不会激活方案。",
+  "chat.activity.retrying": "正在重试，第 {attempt}/{max} 次，还剩 {seconds} 秒",
+  "chat.activity.retryingAttempt": "正在重试，第 {attempt}/{max} 次"
 }

@@ -1603,5 +1603,21 @@
   "place.view.ccAtOnce.short": "Em uso",
   "place.view.localUnavailable.short": "Não está pronto",
   "place.view.autoTeam.short": "Compartilhado",
-  "pro.name": "MausBot Cloud"
+  "pro.name": "MausBot Cloud",
+  "pro.getPro": "Obter o Pro",
+  "pro.headline": "Mantenha seus bots rodando na nuvem.",
+  "pro.priority": "Novos recursos primeiro e suporte prioritário",
+  "pro.alwaysOn": "Seus bots ficam sempre ativos na nuvem",
+  "pro.computers": "Computadores na nuvem e voz incluídos",
+  "pro.schedule": "Tarefas agendadas na nuvem",
+  "pro.launchPrice": "{price}/mês — preço de lançamento para os primeiros 100 usuários, depois {laterPrice}/mês",
+  "pro.otherPlans": "Também: Personal por {personal}/mês e Max por {max}/mês.",
+  "pro.tax": "Os preços não incluem os impostos aplicáveis, mostrados no pagamento.",
+  "pro.havePlan": "Já tem um plano do Cloud?",
+  "pro.signIn": "Entrar",
+  "pro.dismiss": "Dispensar a apresentação do Pro para sempre",
+  "pro.noThanks": "Não mostrar novamente",
+  "pro.openFailed": "Não foi possível abrir seu navegador. Tente novamente.",
+  "chat.activity.retrying": "Tentando de novo, tentativa {attempt}/{max}, {seconds}s",
+  "chat.activity.retryingAttempt": "Tentando de novo, tentativa {attempt}/{max}"
 }
