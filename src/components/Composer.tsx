@@ -849,6 +849,7 @@ export function Composer({
         ))}
         {commandMotion.shown && (
           <div
+            id="composer-commands"
             role="listbox"
             aria-label={t("composer.commands.aria")}
             className={cn("absolute bottom-full left-2 z-20 mb-2 w-80 overflow-hidden rounded-xl border border-hairline/40 bg-raised shadow-lg", commandMotion.className)} {...commandMotion.exitProps}
@@ -859,6 +860,7 @@ export function Composer({
             {commandCandidates.map((command, index) => (
               <button
                 key={command.id}
+                id={`composer-command-${command.id}`}
                 type="button"
                 role="option"
                 aria-selected={index === highlight}
@@ -890,6 +892,7 @@ export function Composer({
         {mentionMotion.shown && (
           <div
             ref={mentionListRef}
+            id="composer-mentions"
             role="listbox"
             aria-label={t("composer.mention.aria")}
             className={cn("absolute bottom-full start-2 z-20 mb-2 max-h-72 w-72 overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border border-hairline/40 bg-raised shadow-lg", mentionMotion.className)} {...mentionMotion.exitProps}
@@ -1085,6 +1088,17 @@ export function Composer({
           everyone={Boolean(group && !group.dm)}
           // the message is composed in the writer's language, not the UI's
           dir="auto"
+          role="combobox"
+          aria-expanded={commandMotion.shown || mentionMotion.shown}
+          aria-controls={commandMotion.shown ? "composer-commands" : mentionMotion.shown ? "composer-mentions" : undefined}
+          aria-activedescendant={
+            commandMotion.shown && commandCandidates[highlight]
+              ? `composer-command-${commandCandidates[highlight].id}`
+              : mentionMotion.shown && candidates[highlight]
+                ? `composer-mention-${candidates[highlight].id}`
+                : undefined
+          }
+          aria-autocomplete="list"
           rows={1}
           value={text}
           onChange={(e) => {
@@ -1106,7 +1120,7 @@ export function Composer({
                 );
                 return;
               }
-              if (e.key === "Enter" || e.key === "Tab") {
+              if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 pickCommand(commandCandidates[highlight]);
                 return;
@@ -1124,7 +1138,7 @@ export function Composer({
                 setHighlight((h) => (h + delta + candidates.length) % candidates.length);
                 return;
               }
-              if (e.key === "Enter" || e.key === "Tab") {
+              if ((e.key === "Enter" || e.key === "Tab") && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 pickMention(candidates[highlight]);
                 return;

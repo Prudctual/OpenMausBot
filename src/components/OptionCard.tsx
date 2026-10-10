@@ -118,7 +118,7 @@ export function OptionCard({
           dir="auto"
           value={custom}
           onChange={(e) => setCustom(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && answer(custom)}
+          onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && answer(custom)}
           placeholder={t("onboarding.card.custom")}
           className="mt-3 w-full rounded-lg border border-hairline/40 bg-inset px-3 py-2.5 text-[15px] text-ink placeholder:text-ink-secondary focus:outline-none"
         />
