@@ -16,7 +16,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 it.each([false, true])("keeps update progress on the separate button, iconOnly=%s", (iconOnly) => {
   for (const status of ["idle", "checking", "downloading", "preparing", "downloaded", "installing"] as const) {
     fixture.update = { status };
-    const html = renderToStaticMarkup(createElement(SidebarProfileMenu, { iconOnly }));
+    const html = renderToStaticMarkup(createElement<{ iconOnly: boolean }>(SidebarProfileMenu, { iconOnly }));
     expect(html).toContain('aria-haspopup="menu"');
     expect(html).not.toMatch(/bg-(accent|danger)\//);
     expect(html).not.toContain("ring-2 ring-app");
@@ -25,7 +25,7 @@ it.each([false, true])("keeps update progress on the separate button, iconOnly=%
 
 it.each([false, true])("retains error attention when no separate update button is shown, iconOnly=%s", (iconOnly) => {
   fixture.update = { status: "error", message: "Fixture update failed" };
-  const html = renderToStaticMarkup(createElement(SidebarProfileMenu, { iconOnly }));
+  const html = renderToStaticMarkup(createElement<{ iconOnly: boolean }>(SidebarProfileMenu, { iconOnly }));
   expect(html).toContain("bg-danger");
   if (!iconOnly) expect(html).toContain('aria-label="Fixture update failed"');
 });
